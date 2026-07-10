@@ -27,14 +27,19 @@ const FEATURE_CONFIG = {
         'ytd-ad-slot-renderer'
     ],
     notifications: [
-        'ytd-notification-topbar-button-renderer'
+        'ytd-notification-topbar-button-renderer',
+        'ytd-button-renderer:has(button[aria-label*="Notifications" i])'
     ],
     create_button: [
-        'ytd-button-renderer:has(a[href^="/create"])',
-        'ytd-topbar-menu-button-renderer:has(button[aria-label*="Create"])'
+        'ytd-button-renderer:has(button[aria-label*="Create" i])',
+        'ytd-topbar-menu-button-renderer:has(button[aria-label*="Create" i])',
+        'a[aria-label*="Create" i]',
+        'button[aria-label*="Create" i]'
     ],
     join_button: [
-        'ytd-button-renderer:has(a[href*="/join"])'
+        'ytd-button-renderer:has(a[href*="/join"])',
+        'ytd-button-renderer:has(button[aria-label*="Join" i])',
+        'yt-button-shape:has(button[aria-label*="Join" i])'
     ],
     voice_search: [
         '#voice-search-button'
@@ -62,9 +67,9 @@ const FEATURE_CONFIG = {
 let cssRule = '';
 
 for (const [featureKey, selectors] of Object.entries(FEATURE_CONFIG)) {
-    const joinedSelectors = selectors.join(',\n');
-    // Default hidden. Only shown if <html> has class 'dcltr-show-{featureKey}'
-    cssRule += `html:not(.dcltr-show-${featureKey}) ${joinedSelectors} { display: none !important; }\n`;
+    const joinedSelectors = selectors.join(', ');
+    // CRITICAL: Wrap selectors in :is() so :not() applies to ALL selectors, not just the first one
+    cssRule += `html:not(.dcltr-show-${featureKey}) :is(${joinedSelectors}) { display: none !important; }\n`;
 }
 
 // Inject CSS immediately at document_start
