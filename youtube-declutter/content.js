@@ -14,6 +14,7 @@ const FEATURE_CONFIG = {
         'ytd-mini-guide-entry-renderer:has(a[href^="/shorts"])',
         'ytd-compact-video-renderer:has(a[href^="/shorts/"])',
         'ytd-grid-video-renderer:has(a[href^="/shorts/"])',
+        'ytd-video-renderer:has(a[href^="/shorts/"])',
         'ytd-shorts',
         'ytd-reel-video-renderer',
         'ytd-reel-overlay-renderer'
@@ -21,8 +22,9 @@ const FEATURE_CONFIG = {
     ads_playables: [
         'a[href*="/playables"]',
         'ytd-rich-section-renderer:has(a[href*="/playables"])',
+        'ytd-rich-item-renderer:has(a[href*="/playables"])',
         'ytd-video-masthead-ad-renderer',
-        'ytd-ad-slot-renderer:has(iframe)'
+        'ytd-ad-slot-renderer'
     ],
     notifications: [
         'ytd-notification-topbar-button-renderer'
@@ -36,6 +38,23 @@ const FEATURE_CONFIG = {
     ],
     voice_search: [
         '#voice-search-button'
+    ],
+    youtube_logo: [
+        'ytd-topbar-logo-renderer',
+        '#logo'
+    ],
+    category_chips: [
+        'ytd-feed-filter-chip-bar-renderer',
+        'div#chips-wrapper'
+    ],
+    top_news: [
+        'ytd-rich-section-renderer:has(yt-formatted-string[title="Top news"])',
+        'ytd-rich-section-renderer:has(yt-formatted-string[title="Breaking news"])'
+    ],
+    ai_search: [
+        'ytd-ask-search-button-renderer',
+        'button[aria-label*="ask" i]',
+        'yt-button-renderer:has(button[aria-label*="ask" i])'
     ]
 };
 
@@ -83,7 +102,11 @@ const DEFAULT_STATES = {
     notifications: true,
     create_button: true,
     join_button: true,
-    voice_search: true
+    voice_search: true,
+    youtube_logo: true,
+    category_chips: true,
+    top_news: true,
+    ai_search: true
 };
 
 // 1. Initial Load

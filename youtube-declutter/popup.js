@@ -5,7 +5,11 @@ const DEFAULT_STATES = {
     notifications: true,
     create_button: true,
     join_button: true,
-    voice_search: true
+    voice_search: true,
+    youtube_logo: true,
+    category_chips: true,
+    top_news: true,
+    ai_search: true
 };
 
 const FEATURE_KEYS = Object.keys(DEFAULT_STATES);
