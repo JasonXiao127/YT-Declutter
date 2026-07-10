@@ -1,0 +1,109 @@
+/* FOUC prevention - hide body until popup.js sets state */
+body {
+    visibility: hidden;
+    width: 280px;
+    margin: 0;
+    padding: 16px;
+    font-family: system-ui, -apple-system, sans-serif;
+    background-color: #ffffff;
+    color: #0f0f0f;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+h1 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 4px 0;
+    color: #0f0f0f;
+}
+
+.toggle-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.toggle-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.toggle-row:last-child {
+    border-bottom: none;
+}
+
+.toggle-row label:first-child {
+    font-size: 13px;
+    font-weight: 500;
+    color: #0f0f0f;
+    cursor: pointer;
+    flex: 1;
+    padding-right: 12px;
+}
+
+.footer {
+    font-size: 11px;
+    color: #909090;
+    margin: 4px 0 0 0;
+    padding-top: 8px;
+    border-top: 1px solid #e5e5e5;
+}
+
+/* Toggle Switch */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.3s;
+    border-radius: 20px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: #065fd4;
+}
+
+input:checked + .slider:before {
+    transform: translateX(20px);
+}
+
+input:focus-visible + .slider {
+    box-shadow: 0 0 0 2px rgba(6, 95, 212, 0.3);
+}

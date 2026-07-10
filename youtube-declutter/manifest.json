@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube Declutter",
+  "version": "6.0",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "YouTube Declutter"
+  }
+}
