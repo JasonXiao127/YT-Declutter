@@ -2,7 +2,7 @@
 
 A browser extension that lets you hide distracting parts of YouTube. Choose exactly what you want gone — comments, Shorts, ads, buttons, the logo, and more.
 
-<img width="311" height="526" alt="image" src="https://github.com/user-attachments/assets/625c553a-8133-4a90-ba3d-a56dc0d186c0" />
+<img width="2153" height="1311" alt="image" src="https://github.com/user-attachments/assets/d20b14e9-e097-4f64-9afd-ca271484b3eb" />
 
 ## Features
 
