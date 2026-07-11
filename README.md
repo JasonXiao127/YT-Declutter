@@ -27,4 +27,4 @@ Each toggle works independently — turn things on or off whenever you want, wit
 1. **Download** the extension:
    - Clone this repository:  
      ```bash
-     git clone https://github.com/yourusername/youtube-declutter.git
+     git clone https://github.com/JasonXiao127/youtube-declutter.git
