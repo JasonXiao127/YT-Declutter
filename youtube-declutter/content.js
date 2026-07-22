@@ -20,7 +20,9 @@ const FEATURE_CONFIG = {
         'ytd-video-renderer:has(a[href^="/shorts/"])',
         'ytd-shorts',
         'ytd-reel-video-renderer',
-        'ytd-reel-overlay-renderer'
+        'ytd-reel-overlay-renderer',
+        'grid-shelf-view-model',
+        'ytd-item-section-renderer:has(grid-shelf-view-model)'
     ],
     ads_playables: [
         'a[href*="/playables"]',
