@@ -9,7 +9,8 @@ const DEFAULT_STATES = {
     youtube_logo: true,
     category_chips: true,
     top_news: true,
-    ai_search: true
+    ai_search: true,
+    guide_sections: true
 };
 
 const FEATURE_KEYS = Object.keys(DEFAULT_STATES);

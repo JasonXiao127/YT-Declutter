@@ -65,6 +65,11 @@ const FEATURE_CONFIG = {
         'ytd-ask-search-button-renderer',
         'button[aria-label*="ask" i]',
         'yt-button-renderer:has(button[aria-label*="ask" i])'
+    ],
+    guide_sections: [
+        'ytd-guide-section-renderer:has(a[href="/premium"])',
+        'ytd-guide-section-renderer:has(a[href="/feed/storefront"])',
+        'ytd-guide-section-renderer:has(a[href="https://music.youtube.com"])'
     ]
 };
 
@@ -116,7 +121,8 @@ const DEFAULT_STATES = {
     youtube_logo: true,
     category_chips: true,
     top_news: true,
-    ai_search: true
+    ai_search: true,
+    guide_sections: true
 };
 
 // 1. Initial Load
