@@ -137,6 +137,7 @@ const YT_DCLTR_FEATURES = [
         key: 'youtube_logo',
         label: 'Logo & Seasonal Doodles',
         group: 'Top Bar',
+        defaultHidden: false,
         selectors: [
             'ytd-topbar-logo-renderer',
             'ytd-yoodle-renderer',
@@ -219,5 +220,5 @@ const YT_DCLTR_FEATURES = [
 ];
 
 const YT_DCLTR_DEFAULTS = Object.fromEntries(
-    YT_DCLTR_FEATURES.map(feature => [feature.key, true])
+    YT_DCLTR_FEATURES.map(feature => [feature.key, feature.defaultHidden !== false])
 );
