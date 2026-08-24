@@ -1,12 +1,38 @@
-/* FOUC prevention - hide body until popup.js sets state */
+:root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --text: #0f0f0f;
+    --muted: #909090;
+    --row-border: #f0f0f0;
+    --divider: #e5e5e5;
+    --accent: #065fd4;
+    --accent-focus: rgba(6, 95, 212, 0.3);
+    --slider-off: #cccccc;
+    --knob: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #0f0f0f;
+        --text: #f1f1f1;
+        --muted: #aaaaaa;
+        --row-border: #272727;
+        --divider: #303030;
+        --accent: #3ea6ff;
+        --accent-focus: rgba(62, 166, 255, 0.35);
+        --slider-off: #555555;
+        --knob: #181818;
+    }
+}
+
 body {
     visibility: hidden;
     width: 280px;
     margin: 0;
     padding: 16px;
     font-family: system-ui, -apple-system, sans-serif;
-    background-color: #ffffff;
-    color: #0f0f0f;
+    background-color: var(--bg);
+    color: var(--text);
 }
 
 .container {
@@ -19,7 +45,20 @@ h1 {
     font-size: 16px;
     font-weight: 600;
     margin: 0 0 4px 0;
-    color: #0f0f0f;
+    color: var(--text);
+}
+
+.group-header {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 10px 0 2px 0;
+}
+
+.toggle-list .group-header:first-child {
+    margin-top: 0;
 }
 
 .toggle-list {
@@ -32,8 +71,8 @@ h1 {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 0;
-    border-bottom: 1px solid #f0f0f0;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--row-border);
 }
 
 .toggle-row:last-child {
@@ -43,18 +82,36 @@ h1 {
 .toggle-row label:first-child {
     font-size: 13px;
     font-weight: 500;
-    color: #0f0f0f;
+    color: var(--text);
     cursor: pointer;
     flex: 1;
     padding-right: 12px;
 }
 
+.reset-button {
+    margin-top: 12px;
+    width: 100%;
+    padding: 7px 0;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--divider);
+    transition: border-color 0.15s;
+}
+
+.reset-button:hover {
+    border-color: var(--muted);
+}
+
 .footer {
     font-size: 11px;
-    color: #909090;
+    color: var(--muted);
     margin: 4px 0 0 0;
     padding-top: 8px;
-    border-top: 1px solid #e5e5e5;
+    border-top: 1px solid var(--divider);
 }
 
 /* Toggle Switch */
@@ -79,7 +136,7 @@ h1 {
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: #ccc;
+    background-color: var(--slider-off);
     transition: 0.3s;
     border-radius: 20px;
 }
@@ -91,13 +148,13 @@ h1 {
     width: 16px;
     left: 2px;
     bottom: 2px;
-    background-color: white;
+    background-color: var(--knob);
     transition: 0.3s;
     border-radius: 50%;
 }
 
 input:checked + .slider {
-    background-color: #065fd4;
+    background-color: var(--accent);
 }
 
 input:checked + .slider:before {
@@ -105,5 +162,5 @@ input:checked + .slider:before {
 }
 
 input:focus-visible + .slider {
-    box-shadow: 0 0 0 2px rgba(6, 95, 212, 0.3);
+    box-shadow: 0 0 0 2px var(--accent-focus);
 }

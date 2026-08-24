@@ -4,99 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="popup.css">
-    <script src="popup.js"></script>
     <title>YouTube Declutter</title>
 </head>
 <body>
     <div class="container">
         <h1>YouTube Declutter</h1>
-        <div class="toggle-list">
-            <div class="toggle-row">
-                <label for="toggle-comments">Hide Comments</label>
-                <label class="switch">
-                    <input type="checkbox" id="toggle-comments">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="toggle-row">
-                <label for="toggle-shorts">Hide Shorts</label>
-                <label class="switch">
-                    <input type="checkbox" id="toggle-shorts">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="toggle-row">
-                <label for="toggle-ads_playables">Hide Game Ads & Playables</label>
-                <label class="switch">
-                    <input type="checkbox" id="toggle-ads_playables">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="toggle-row">
-                <label for="toggle-notifications">Hide Notifications</label>
-                <label class="switch">
-                    <input type="checkbox" id="toggle-notifications">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="toggle-row">
-                <label for="toggle-create_button">Hide Create Button</label>
-                <label class="switch">
-                    <input type="checkbox" id="toggle-create_button">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="toggle-row">
-                <label for="toggle-join_button">Hide Join Button</label>
-                <label class="switch">
-                    <input type="checkbox" id="toggle-join_button">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="toggle-row">
-                <label for="toggle-voice_search">Hide Voice Search</label>
-                <label class="switch">
-                    <input type="checkbox" id="toggle-voice_search">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="toggle-row">
-                <label for="toggle-youtube_logo">Hide YouTube Logo</label>
-                <label class="switch">
-                    <input type="checkbox" id="toggle-youtube_logo">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="toggle-row">
-                <label for="toggle-category_chips">Hide Category Chips</label>
-                <label class="switch">
-                    <input type="checkbox" id="toggle-category_chips">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="toggle-row">
-                <label for="toggle-top_news">Hide Top News Section</label>
-                <label class="switch">
-                    <input type="checkbox" id="toggle-top_news">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="toggle-row">
-                <label for="toggle-ai_search">Hide AI Search (Ask YouTube)</label>
-                <label class="switch">
-                    <input type="checkbox" id="toggle-ai_search">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="toggle-row">
-                <label for="toggle-guide_sections">Hide Sidebar Sections (More from YouTube, Explore)</label>
-                <label class="switch">
-                    <input type="checkbox" id="toggle-guide_sections">
-                    <span class="slider"></span>
-                </label>
-            </div>
-        </div>
+        <div class="toggle-list" id="toggle-list"></div>
+        <button type="button" id="reset-button" class="reset-button">Reset to Defaults</button>
         <p class="footer">Changes apply instantly.</p>
     </div>
+    <script src="features.js"></script>
+    <script src="popup.js"></script>
 </body>
 </html>

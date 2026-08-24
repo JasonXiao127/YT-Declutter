@@ -1,50 +1,114 @@
-const DEFAULT_STATES = {
-    comments: true,
-    shorts: true,
-    ads_playables: true,
-    notifications: true,
-    create_button: true,
-    join_button: true,
-    voice_search: true,
-    youtube_logo: true,
-    category_chips: true,
-    top_news: true,
-    ai_search: true,
-    guide_sections: true
-};
+(function () {
+    'use strict';
 
-const FEATURE_KEYS = Object.keys(DEFAULT_STATES);
+    const STORAGE_KEY = 'states';
+    const FEATURES = YT_DCLTR_FEATURES;
+    const DEFAULTS = YT_DCLTR_DEFAULTS;
 
-document.addEventListener('DOMContentLoaded', () => {
-    const toggles = {};
-    FEATURE_KEYS.forEach(key => {
-        toggles[key] = document.getElementById(`toggle-${key}`);
-    });
+    const listEl = document.getElementById('toggle-list');
+    const resetButton = document.getElementById('reset-button');
 
-    // Show popup immediately — don't wait for storage to respond
-    document.body.style.visibility = 'visible';
+    let states = { ...DEFAULTS };
+    let loaded = false;
+    const pendingUserChanges = new Set();
 
-    // Set initial toggle states based on local storage
-    chrome.storage.local.get('states', (data) => {
-        if (chrome.runtime.lastError) {
-            // Storage error — default to all enabled (hidden)
-            FEATURE_KEYS.forEach(key => { toggles[key].checked = DEFAULT_STATES[key]; });
+    function persist() {
+        try {
+            chrome.storage.local.set({ [STORAGE_KEY]: { ...states } });
+        } catch (err) {
+            /* extension context invalidated; nothing to save */
+        }
+    }
+
+    function refreshCheckbox(feature) {
+        const input = document.getElementById(`toggle-${feature.key}`);
+        if (input) input.checked = states[feature.key];
+    }
+
+    function buildUi() {
+        let currentGroup = null;
+        for (const feature of FEATURES) {
+            if (feature.group !== currentGroup) {
+                currentGroup = feature.group;
+                const header = document.createElement('h2');
+                header.className = 'group-header';
+                header.textContent = currentGroup;
+                listEl.appendChild(header);
+            }
+
+            const row = document.createElement('div');
+            row.className = 'toggle-row';
+
+            const label = document.createElement('label');
+            label.textContent = feature.label;
+            label.htmlFor = `toggle-${feature.key}`;
+
+            const switchWrap = document.createElement('label');
+            switchWrap.className = 'switch';
+
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.id = `toggle-${feature.key}`;
+            input.checked = states[feature.key];
+            input.addEventListener('change', () => {
+                states[feature.key] = input.checked;
+                if (!loaded) pendingUserChanges.add(feature.key);
+                persist();
+            });
+
+            const slider = document.createElement('span');
+            slider.className = 'slider';
+
+            switchWrap.append(input, slider);
+            row.append(label, switchWrap);
+            listEl.appendChild(row);
+        }
+    }
+
+    function loadStates() {
+        let storage;
+        try {
+            storage = chrome.storage.local;
+        } catch (err) {
+            loaded = true;
             return;
         }
-        const currentStates = (data && data.states) ? { ...DEFAULT_STATES, ...data.states } : DEFAULT_STATES;
-        FEATURE_KEYS.forEach(key => {
-            toggles[key].checked = currentStates[key];
+        storage.get(STORAGE_KEY, (data) => {
+            if (!chrome.runtime.lastError && data && data[STORAGE_KEY]) {
+                const stored = data[STORAGE_KEY];
+                for (const feature of FEATURES) {
+                    if (
+                        typeof stored[feature.key] === 'boolean' &&
+                        !pendingUserChanges.has(feature.key)
+                    ) {
+                        states[feature.key] = stored[feature.key];
+                    }
+                }
+            }
+            loaded = true;
+            FEATURES.forEach(refreshCheckbox);
         });
+    }
+
+    function loadFailed() {
+        loaded = true;
+        FEATURES.forEach(refreshCheckbox);
+    }
+
+    resetButton.addEventListener('click', () => {
+        if (!confirm('Reset all toggles to their defaults?')) return;
+        states = { ...DEFAULTS };
+        if (!loaded) FEATURES.forEach(f => pendingUserChanges.add(f.key));
+        persist();
+        FEATURES.forEach(refreshCheckbox);
     });
 
-    // Save state on ANY toggle change
-    FEATURE_KEYS.forEach(key => {
-        toggles[key].addEventListener('change', () => {
-            chrome.storage.local.get('states', (data) => {
-                const updatedStates = (data && data.states) ? data.states : DEFAULT_STATES;
-                updatedStates[key] = toggles[key].checked;
-                chrome.storage.local.set({ states: updatedStates });
-            });
-        });
-    });
-});
+    buildUi();
+    document.body.style.visibility = 'visible';
+    try {
+        chrome.runtime.getManifest();
+        loadStates();
+    } catch (err) {
+        loadFailed();
+    }
+})();
