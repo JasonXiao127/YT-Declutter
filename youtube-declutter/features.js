@@ -9,7 +9,6 @@ const YT_DCLTR_FEATURES = [
             'ytd-reel-shelf-renderer',
             'ytd-guide-entry-renderer:has(a[href^="/shorts"])',
             'ytd-mini-guide-entry-renderer:has(a[href^="/shorts"])',
-            'ytd-guide-section-renderer:has(ytd-guide-entry-renderer a[href*="/shorts"])',
             'ytd-compact-video-renderer:has(a[href^="/shorts/"])',
             'ytd-grid-video-renderer:has(a[href^="/shorts/"])',
             'ytd-video-renderer:has(a[href^="/shorts/"])',
@@ -17,8 +16,8 @@ const YT_DCLTR_FEATURES = [
             'ytd-shorts',
             'ytd-reel-video-renderer',
             'ytd-reel-overlay-renderer',
-            'grid-shelf-view-model',
-            'ytd-item-section-renderer:has(grid-shelf-view-model)',
+            'grid-shelf-view-model:has(a[href^="/shorts/"])',
+            'ytd-item-section-renderer:has(grid-shelf-view-model:has(a[href^="/shorts/"]))',
             'yt-chip-cloud-chip-renderer:has(yt-formatted-string[title="Shorts"])',
             'yt-tab-shape[tab-title="Shorts"]'
         ]
@@ -106,7 +105,7 @@ const YT_DCLTR_FEATURES = [
         group: 'Top Bar',
         selectors: [
             'ytd-notification-topbar-button-renderer',
-            'ytd-button-renderer:has(button[aria-label*="Notifications" i])'
+            'ytd-masthead ytd-button-renderer:has(button[aria-label*="Notifications" i])'
         ]
     },
     {
@@ -192,7 +191,15 @@ const YT_DCLTR_FEATURES = [
             '#below ytd-horizontal-card-list-renderer[modern-chapters]',
             '#below ytd-video-description-transcript-section-renderer',
             '#below ytd-video-description-infocards-section-renderer',
-            '#below #teaser-carousel',
+            '#below #teaser-carousel'
+        ]
+    },
+    {
+        key: 'info_panels',
+        label: 'Info Panels (Clarify Box)',
+        group: 'Watch Page',
+        defaultHidden: false,
+        selectors: [
             '#below > #clarify-box'
         ]
     },

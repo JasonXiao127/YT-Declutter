@@ -2,7 +2,7 @@
 
 A browser extension that lets you hide distracting parts of YouTube. Choose exactly what you want gone — comments, Shorts, ads, buttons, the logo, and more.
 
-<img width="2153" height="1311" alt="image" src="https://github.com/user-attachments/assets/d20b14e9-e097-4f64-9afd-ca271484b3eb" />
+<img width="800" alt="YouTube Declutter popup showing toggle groups" src="https://github.com/user-attachments/assets/d20b14e9-e097-4f64-9afd-ca271484b3eb" />
 
 ## Features
 
@@ -32,6 +32,7 @@ A browser extension that lets you hide distracting parts of YouTube. Choose exac
 - **Merch & Fundraiser Shelves** – Hide merch shelves and donation boxes.
 - **AI Video Summary** – Remove the AI-generated summary below the description.
 - **Description Extras** – Collapse chapters, transcripts, and infocard sections in the description.
+- **Info Panels (Clarify Box)** – Hide contextual info panels below the player. Off by default.
 
 **Search & Channels**
 
@@ -45,16 +46,22 @@ Each toggle works independently — turn things on or off whenever you want, wit
 ### For Chromium‑based browsers (Chrome, Edge, Brave, Opera)
 
 1. **Download** the extension:
-   - Clone this repository:
-     ```bash
-     git clone https://github.com/JasonXiao127/YT-Declutter
-     ```
+    - Clone this repository:
+      ```bash
+      git clone https://github.com/JasonXiao127/unslopify.git
+      ```
 2. Open `chrome://extensions` (or your browser's equivalent).
 3. Enable **Developer mode**.
 4. Click **Load unpacked** and select the `youtube-declutter` folder.
 
 ## Notes
 
-- The extension runs on `www.youtube.com` only; YouTube Music and mobile are unaffected.
+- Runs on `*.youtube.com` (including `m.youtube.com`), except `music.youtube.com` which is excluded. Requires Chrome 105+ (or equivalent) for `:has()` selectors.
 - Selectors are centralized in `youtube-declutter/features.js` — add or tweak entries there to extend it. The popup UI and hiding CSS are generated from that single file.
 - Some features rely on English labels (e.g., "Top news", "Thanks") and may not match on localized YouTube interfaces.
+- Hiding Shorts also blanks a directly-opened `/shorts/...` watch URL (the player itself is hidden). Hiding the logo removes the home link in the top bar.
+- Privacy: settings are stored only in `chrome.storage.local` on your device. No network requests, analytics, or extra permissions.
+
+## Changelog
+
+- `10.1` — Fixed first-paint defaults flash, popup storage race, popup scrolling/disabled states, scoped Shorts/notifications selectors, split Clarify Box into opt-in Info Panels toggle, added icons, broadened YouTube matches (music excluded).

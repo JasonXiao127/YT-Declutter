@@ -2,19 +2,52 @@
     'use strict';
 
     const STORAGE_KEY = 'states';
-    const FEATURES = YT_DCLTR_FEATURES;
-    const DEFAULTS = YT_DCLTR_DEFAULTS;
+    const FEATURES = Array.isArray(globalThis.YT_DCLTR_FEATURES) ? globalThis.YT_DCLTR_FEATURES : [];
+    const DEFAULTS = (globalThis.YT_DCLTR_DEFAULTS && typeof globalThis.YT_DCLTR_DEFAULTS === 'object')
+        ? globalThis.YT_DCLTR_DEFAULTS
+        : Object.fromEntries(FEATURES.map(feature => [feature.key, feature.defaultHidden !== false]));
 
     const listEl = document.getElementById('toggle-list');
     const resetButton = document.getElementById('reset-button');
 
+    function getApi() {
+        try {
+            if (globalThis.chrome && globalThis.chrome.storage) return globalThis.chrome;
+            if (globalThis.browser && globalThis.browser.storage) return globalThis.browser;
+        } catch (err) { /* unavailable */ }
+        return null;
+    }
+
     let states = { ...DEFAULTS };
     let loaded = false;
+    let revealed = false;
     const pendingUserChanges = new Set();
 
+    function reveal() {
+        if (revealed) return;
+        revealed = true;
+        document.body.style.visibility = 'visible';
+    }
+
+    function setUiEnabled(enabled) {
+        if (listEl) {
+            listEl.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+                input.disabled = !enabled;
+            });
+        }
+        if (resetButton) resetButton.disabled = !enabled;
+    }
+
     function persist() {
+        // Never persist pre-load defaults over real stored values.
+        if (!loaded) return;
+        const api = getApi();
+        if (!api) return;
         try {
-            chrome.storage.local.set({ [STORAGE_KEY]: { ...states } });
+            const result = api.storage.local.set({ [STORAGE_KEY]: { ...states } });
+            if (result && typeof result.catch === 'function') {
+                result.catch(() => { /* quota / invalidated context; stays in-memory */ });
+            }
         } catch (err) {
             /* extension context invalidated; nothing to save */
         }
@@ -22,10 +55,40 @@
 
     function refreshCheckbox(feature) {
         const input = document.getElementById(`toggle-${feature.key}`);
-        if (input) input.checked = states[feature.key];
+        if (input) input.checked = !!states[feature.key];
+    }
+
+    function refreshAll() {
+        FEATURES.forEach(refreshCheckbox);
+    }
+
+    function applyStored(stored) {
+        if (!stored) return;
+        for (const feature of FEATURES) {
+            if (typeof stored[feature.key] === 'boolean' && !pendingUserChanges.has(feature.key)) {
+                states[feature.key] = stored[feature.key];
+            }
+        }
+    }
+
+    function finishLoad() {
+        loaded = true;
+        pendingUserChanges.clear();
+        refreshAll();
+        setUiEnabled(true);
+        reveal();
     }
 
     function buildUi() {
+        if (!listEl) return;
+        listEl.textContent = '';
+        if (FEATURES.length === 0) {
+            const empty = document.createElement('p');
+            empty.className = 'footer';
+            empty.textContent = 'Could not load toggle definitions (features.js missing).';
+            listEl.appendChild(empty);
+            return;
+        }
         let currentGroup = null;
         for (const feature of FEATURES) {
             if (feature.group !== currentGroup) {
@@ -49,10 +112,14 @@
             const input = document.createElement('input');
             input.type = 'checkbox';
             input.id = `toggle-${feature.key}`;
-            input.checked = states[feature.key];
+            input.checked = !!states[feature.key];
+            input.disabled = !loaded;
             input.addEventListener('change', () => {
                 states[feature.key] = input.checked;
-                if (!loaded) pendingUserChanges.add(feature.key);
+                if (!loaded) {
+                    pendingUserChanges.add(feature.key);
+                    return;
+                }
                 persist();
             });
 
@@ -66,47 +133,118 @@
     }
 
     function loadStates() {
-        let storage;
-        try {
-            storage = chrome.storage.local;
-        } catch (err) {
-            loaded = true;
+        const api = getApi();
+        if (!api) {
+            loadFailed();
             return;
         }
-        storage.get(STORAGE_KEY, (data) => {
-            if (!chrome.runtime.lastError && data && data[STORAGE_KEY]) {
-                const stored = data[STORAGE_KEY];
-                for (const feature of FEATURES) {
-                    if (
-                        typeof stored[feature.key] === 'boolean' &&
-                        !pendingUserChanges.has(feature.key)
-                    ) {
-                        states[feature.key] = stored[feature.key];
+        let callbackFired = false;
+        const onData = (data) => {
+            if (callbackFired) return;
+            callbackFired = true;
+            if (data && data[STORAGE_KEY]) applyStored(data[STORAGE_KEY]);
+            const hadPending = pendingUserChanges.size > 0;
+            finishLoad();
+            // If the user toggled while loading, their choice wins and is now saved.
+            if (hadPending) persist();
+        };
+        try {
+            const result = api.storage.local.get(STORAGE_KEY, (data) => {
+                try {
+                    if (api.runtime && api.runtime.lastError) {
+                        if (!callbackFired) {
+                            callbackFired = true;
+                            finishLoad();
+                        }
+                        return;
                     }
-                }
+                } catch (err) { /* ignore */ }
+                onData(data);
+            });
+            if (result && typeof result.then === 'function') {
+                result.then(onData, () => {
+                    if (!callbackFired) {
+                        callbackFired = true;
+                        finishLoad();
+                    }
+                });
             }
-            loaded = true;
-            FEATURES.forEach(refreshCheckbox);
-        });
+        } catch (err) {
+            loadFailed();
+            return;
+        }
+        // Safety net: never leave the popup blank if storage hangs.
+        setTimeout(() => {
+            if (!callbackFired) {
+                callbackFired = true;
+                const hadPending = pendingUserChanges.size > 0;
+                finishLoad();
+                if (hadPending) persist();
+            }
+        }, 2000);
     }
 
     function loadFailed() {
         loaded = true;
-        FEATURES.forEach(refreshCheckbox);
+        pendingUserChanges.clear();
+        refreshAll();
+        setUiEnabled(true);
+        reveal();
     }
 
-    resetButton.addEventListener('click', () => {
-        if (!confirm('Reset all toggles to their defaults?')) return;
-        states = { ...DEFAULTS };
-        if (!loaded) FEATURES.forEach(f => pendingUserChanges.add(f.key));
-        persist();
-        FEATURES.forEach(refreshCheckbox);
-    });
+    function subscribeToExternalChanges() {
+        try {
+            const api = getApi();
+            if (api && api.storage && api.storage.onChanged) {
+                api.storage.onChanged.addListener((changes, namespace) => {
+                    if (namespace === 'local' && changes[STORAGE_KEY] && changes[STORAGE_KEY].newValue) {
+                        applyStored(changes[STORAGE_KEY].newValue);
+                        if (loaded) refreshAll();
+                    }
+                });
+            }
+        } catch (err) { /* ignore */ }
+    }
+
+    let resetArmed = false;
+    let resetTimer = null;
+    function disarmReset() {
+        resetArmed = false;
+        if (resetButton) {
+            resetButton.classList.remove('armed');
+            resetButton.textContent = 'Reset to Defaults';
+        }
+        if (resetTimer) {
+            clearTimeout(resetTimer);
+            resetTimer = null;
+        }
+    }
+
+    if (resetButton) {
+        resetButton.addEventListener('click', () => {
+            if (!loaded) return;
+            if (!resetArmed) {
+                resetArmed = true;
+                resetButton.classList.add('armed');
+                resetButton.textContent = 'Click again to confirm reset';
+                resetTimer = setTimeout(disarmReset, 3000);
+                return;
+            }
+            disarmReset();
+            states = { ...DEFAULTS };
+            persist();
+            refreshAll();
+        });
+    }
 
     buildUi();
-    document.body.style.visibility = 'visible';
+    setUiEnabled(false);
+    subscribeToExternalChanges();
     try {
-        chrome.runtime.getManifest();
+        const api = getApi();
+        if (api && api.runtime && typeof api.runtime.getManifest === 'function') {
+            api.runtime.getManifest();
+        }
         loadStates();
     } catch (err) {
         loadFailed();
