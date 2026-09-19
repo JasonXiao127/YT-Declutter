@@ -1,6 +1,6 @@
 # YouTube Declutter
 
-A browser extension that lets you hide distracting parts of YouTube. Choose exactly what you want gone — comments, Shorts, ads, buttons, the logo, and more.
+Hide parts of YouTube you do not want. Pick what to hide. Changes apply at once. No reload needed.
 
 <img width="800" alt="YouTube Declutter popup showing toggle groups" src="https://github.com/user-attachments/assets/d20b14e9-e097-4f64-9afd-ca271484b3eb" />
 
@@ -8,60 +8,59 @@ A browser extension that lets you hide distracting parts of YouTube. Choose exac
 
 **Feed & Sidebar**
 
-- **Shorts** – Remove Shorts from the feed, sidebar, search results, channel tabs, and description remixes.
-- **Comments** – Hide the comment section under videos and the comments panel on Shorts.
-- **Ads, Playables & Nag Toasts** – Block masthead ads, ad slots, the Playables shelf, and the "ad blocker detected" toast.
-- **Category Chips** – Remove the filter chips row (All, Gaming, Music, etc.).
-- **Top News Section** – Hide the "Top news" and "Breaking news" sections on the homepage.
-- **Feedback Surveys** – Hide "How is this recommendation?" style surveys.
-- **Sidebar Sections** – Remove the Explore and More from YouTube sidebar sections.
-- **Join Buttons** – Hide membership join buttons.
+- **Shorts**: Removes Shorts from the feed, sidebar, search results, channel tabs, and remixes in descriptions.
+- **Comments**: Hides comments under videos and the comments panel on Shorts.
+- **Ads, Playables & Nag Toasts**: Hides masthead ads, ad slots, the Playables shelf, and the ad blocker toast.
+- **Category Chips**: Hides the filter chips row (All, Gaming, Music, and the rest).
+- **Top News Section**: Hides the Top news and Breaking news sections on the homepage.
+- **Feedback Surveys**: Hides feedback surveys on recommendations.
+- **Sidebar Sections**: Hides the Explore and More from YouTube sections.
+- **Join Buttons**: Hides channel Join buttons.
 
 **Top Bar**
 
-- **Notifications Bell** – Hide the notification bell.
-- **Create Button (Top Bar Only)** – Remove the Create (camera) button without touching watch-page actions like Clip or playlist creation.
-- **Voice Search Button** – Disable the microphone button in the search bar.
-- **AI Search (Ask YouTube)** – Remove the experimental "Ask" button.
-- **Logo & Seasonal Doodles** – Hide the YouTube logo and holiday banner art.
+- **Notifications Bell**: Hides the notification bell.
+- **Create Button (Top Bar Only)**: Hides the Create button in the top bar. Does not touch Clip or other watch page buttons.
+- **Voice Search Button**: Hides the mic button in the search bar.
+- **AI Search (Ask YouTube)**: Hides the Ask button.
+- **Logo & Seasonal Doodles**: Hides the YouTube logo and seasonal art. Off by default. Hiding the logo also removes the home link.
 
 **Watch Page**
 
-- **Player Overlays** – Hide end-screen cards, paid-promotion notices, and live reaction overlays.
-- **Video Actions** – Remove Download, Thanks, and Clip buttons under the player.
-- **Merch & Fundraiser Shelves** – Hide merch shelves and donation boxes.
-- **AI Video Summary** – Remove the AI-generated summary below the description.
-- **Description Extras** – Collapse chapters, transcripts, and infocard sections in the description.
-- **Info Panels (Clarify Box)** – Hide contextual info panels below the player. Off by default.
+- **Player Overlays**: Hides end screen cards, paid promotion notices, and live reaction overlays.
+- **Video Actions**: Hides the Download, Thanks, and Clip buttons under the player.
+- **Merch & Fundraiser Shelves**: Hides merch shelves and donation boxes.
+- **AI Video Summary**: Hides the AI summary below the description.
+- **Description Extras**: Hides chapters, transcripts, and infocard sections in the description.
+- **Info Panels (Clarify Box)**: Hides info panels below the player. Off by default.
 
 **Search & Channels**
 
-- **Search Fluff** – Hide "People also watched" shelves, rent/buy movie rows, and promo panels in search results.
-- **Channel Extras** – Hide channel banners, header link spam, and member shoutout shelves.
+- **Search Fluff**: Hides extra shelves, movie rows, and promo panels in search results.
+- **Channel Extras**: Hides channel banners, header links, and member shoutout shelves.
 
-Each toggle works independently — turn things on or off whenever you want, with instant changes (no page reload needed). A **Reset to Defaults** button restores everything.
+Reset to Defaults turns everything back to the standard setup.
 
 ## Installation
 
-### For Chromium‑based browsers (Chrome, Edge, Brave, Opera)
+### Chrome, Edge, Brave, Opera
 
-1. **Download** the extension:
-    - Clone this repository:
-      ```bash
-      git clone https://github.com/JasonXiao127/unslopify.git
-      ```
-2. Open `chrome://extensions` (or your browser's equivalent).
-3. Enable **Developer mode**.
-4. Click **Load unpacked** and select the `youtube-declutter` folder.
+1. Clone the repo:
+   ```bash
+   git clone https://github.com/JasonXiao127/YT-Declutter.git
+   ```
+2. Open `chrome://extensions`.
+3. Turn on Developer mode.
+4. Click Load unpacked and pick the `youtube-declutter` folder.
 
 ## Notes
 
-- Runs on `*.youtube.com` (including `m.youtube.com`), except `music.youtube.com` which is excluded. Requires Chrome 105+ (or equivalent) for `:has()` selectors.
-- Selectors are centralized in `youtube-declutter/features.js` — add or tweak entries there to extend it. The popup UI and hiding CSS are generated from that single file.
-- Some features rely on English labels (e.g., "Top news", "Thanks") and may not match on localized YouTube interfaces.
-- Hiding Shorts also blanks a directly-opened `/shorts/...` watch URL (the player itself is hidden). Hiding the logo removes the home link in the top bar.
-- Privacy: settings are stored only in `chrome.storage.local` on your device. No network requests, analytics, or extra permissions.
+- Works on `*.youtube.com`, including `m.youtube.com`. Skips `music.youtube.com`. Needs Chrome 105 or newer.
+- All selectors live in `youtube-declutter/features.js`. The popup and hiding CSS come from that one file.
+- Some features match English labels (Top news, Thanks). They may not match on localized YouTube.
+- Hiding Shorts blanks a Shorts page you open direct. The player itself is hidden.
+- Settings stay in `chrome.storage.local` on your device. No network calls. No analytics.
 
 ## Changelog
 
-- `10.1` — Fixed first-paint defaults flash, popup storage race, popup scrolling/disabled states, scoped Shorts/notifications selectors, split Clarify Box into opt-in Info Panels toggle, added icons, broadened YouTube matches (music excluded).
+- `10.1`: Fixed the first paint flash. Fixed the popup storage race. Added popup scrolling. Scoped Shorts and notification selectors. Moved the Clarify Box to its own Info Panels toggle. Added icons. Broadened matches to `*.youtube.com` except Music.
