@@ -1,4 +1,4 @@
-const YT_DCLTR_FEATURES = [
+globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'shorts',
         label: 'Shorts',
@@ -226,6 +226,6 @@ const YT_DCLTR_FEATURES = [
     }
 ];
 
-const YT_DCLTR_DEFAULTS = Object.fromEntries(
-    YT_DCLTR_FEATURES.map(feature => [feature.key, feature.defaultHidden !== false])
+globalThis.YT_DCLTR_DEFAULTS = Object.fromEntries(
+    globalThis.YT_DCLTR_FEATURES.map(feature => [feature.key, feature.defaultHidden !== false])
 );

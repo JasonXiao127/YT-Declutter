@@ -63,4 +63,5 @@ Reset to Defaults turns everything back to the standard setup.
 
 ## Changelog
 
+- `10.2`: Fixed broken toggles and hiding. `features.js` now assigns to `globalThis` so popup and content script can read definitions.
 - `10.1`: Fixed the first paint flash. Fixed the popup storage race. Added popup scrolling. Scoped Shorts and notification selectors. Moved the Clarify Box to its own Info Panels toggle. Added icons. Broadened matches to `*.youtube.com` except Music.

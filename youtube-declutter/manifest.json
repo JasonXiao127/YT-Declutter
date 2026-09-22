@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "YouTube Declutter",
   "description": "Hide distracting parts of YouTube: comments, Shorts, ads, end screens, merch shelves, AI clutter and more.",
-  "version": "10.1",
+  "version": "10.2",
   "minimum_chrome_version": "105",
   "permissions": ["storage"],
   "icons": {
