@@ -9,17 +9,18 @@ globalThis.YT_DCLTR_FEATURES = [
             'ytd-reel-shelf-renderer',
             'ytd-guide-entry-renderer:has(a[href^="/shorts"])',
             'ytd-mini-guide-entry-renderer:has(a[href^="/shorts"])',
-            'ytd-compact-video-renderer:has(a[href^="/shorts/"])',
-            'ytd-grid-video-renderer:has(a[href^="/shorts/"])',
-            'ytd-video-renderer:has(a[href^="/shorts/"])',
-            'ytd-video-renderer:has(badge-shape[aria-label="Shorts"])',
+            'ytd-compact-video-renderer:has(a[href^="/shorts/"], a[href*="/shorts/"])',
+            'ytd-grid-video-renderer:has(a[href^="/shorts/"], a[href*="/shorts/"])',
+            'ytd-video-renderer:has(a[href^="/shorts/"], a[href*="/shorts/"])',
+            'yt-lockup-view-model:has(a[href^="/shorts/"], a[href*="/shorts/"])',
+            'yt-shelf-view-model:has(a[href^="/shorts/"], a[href*="/shorts/"])',
             'ytd-shorts',
             'ytd-reel-video-renderer',
             'ytd-reel-overlay-renderer',
             'grid-shelf-view-model:has(a[href^="/shorts/"])',
             'ytd-item-section-renderer:has(grid-shelf-view-model:has(a[href^="/shorts/"]))',
-            'yt-chip-cloud-chip-renderer:has(yt-formatted-string[title="Shorts"])',
-            'yt-tab-shape[tab-title="Shorts"]'
+            'yt-chip-cloud-chip-renderer:has(yt-formatted-string[title*="shorts" i])',
+            'yt-tab-shape[tab-title*="shorts" i]'
         ]
     },
     {
@@ -59,7 +60,7 @@ globalThis.YT_DCLTR_FEATURES = [
         group: 'Feed & Sidebar',
         selectors: [
             'ytd-feed-filter-chip-bar-renderer',
-            'div#chips-wrapper'
+            'ytd-feed-filter-chip-bar-renderer #chips-wrapper'
         ]
     },
     {
@@ -67,8 +68,8 @@ globalThis.YT_DCLTR_FEATURES = [
         label: 'Top News Section',
         group: 'Feed & Sidebar',
         selectors: [
-            'ytd-rich-section-renderer:has(yt-formatted-string[title="Top news"])',
-            'ytd-rich-section-renderer:has(yt-formatted-string[title="Breaking news"])'
+            'ytd-rich-section-renderer:has(yt-formatted-string[title*="top news" i])',
+            'ytd-rich-section-renderer:has(yt-formatted-string[title*="breaking news" i])'
         ]
     },
     {
@@ -121,7 +122,8 @@ globalThis.YT_DCLTR_FEATURES = [
         group: 'Top Bar',
         selectors: [
             'ytd-masthead ytd-button-renderer:has(button[aria-label*="Create" i])',
-            'ytd-masthead yt-button-view-model:has(button[aria-label*="Create" i])'
+            'ytd-masthead yt-button-view-model:has(button[aria-label*="Create" i])',
+            'ytd-masthead a[href*="/upload"]'
         ]
     },
     {
@@ -167,10 +169,10 @@ globalThis.YT_DCLTR_FEATURES = [
         group: 'Watch Page',
         selectors: [
             '#below ytd-download-button-renderer',
-            '#below yt-button-view-model:has(button[aria-label="Thanks"])',
-            '#below yt-button-view-model:has(button[aria-label="Clip"])',
+            '#below yt-button-view-model:has(button[aria-label*="thanks" i])',
+            '#below yt-button-view-model:has(button[aria-label*="clip" i])',
             '#below ytd-video-owner-renderer > #purchase-button',
-            'ytd-menu-popup-renderer ytd-menu-service-item-download-renderer'
+            '#below ytd-menu-popup-renderer ytd-menu-service-item-download-renderer'
         ]
     },
     {
@@ -207,7 +209,7 @@ globalThis.YT_DCLTR_FEATURES = [
         group: 'Watch Page',
         defaultHidden: false,
         selectors: [
-            '#below > #clarify-box'
+            '#below #clarify-box'
         ]
     },
     {
@@ -215,7 +217,7 @@ globalThis.YT_DCLTR_FEATURES = [
         label: 'Search Fluff (Shelves, Movies, Promos)',
         group: 'Search & Channels',
         selectors: [
-            'ytd-search ytd-shelf-renderer[thumbnail-style]',
+            'ytd-search ytd-shelf-renderer[thumbnail-style]:has(ytd-movie-renderer, a[href*="/movies"], a[href*="/store"], a[href*="/promo"])',
             'ytd-search ytd-horizontal-card-list-renderer',
             'ytd-search ytd-movie-renderer',
             'ytd-search ytd-secondary-search-container-renderer'
@@ -227,7 +229,9 @@ globalThis.YT_DCLTR_FEATURES = [
         group: 'Search & Channels',
         selectors: [
             '#page-header-banner',
-            'yt-attribution-view-model',
+            'ytd-c4-tabbed-header-renderer yt-attribution-view-model',
+            'ytd-channel-header-renderer yt-attribution-view-model',
+            '#page-header yt-attribution-view-model',
             'ytd-recognition-shelf-renderer'
         ]
     }

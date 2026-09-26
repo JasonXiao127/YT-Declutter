@@ -8,7 +8,7 @@
     color-scheme: light dark;
     --bg: #ffffff;
     --text: #0f0f0f;
-    --muted: #909090;
+    --muted: #767676;
     --row-border: #f0f0f0;
     --divider: #e5e5e5;
     --accent: #065fd4;
@@ -88,7 +88,7 @@ h1 {
     border-bottom: none;
 }
 
-.toggle-row label:first-child {
+.toggle-row .toggle-label {
     font-size: 13px;
     font-weight: 500;
     color: var(--text);
@@ -195,4 +195,12 @@ input:focus-visible + .slider {
 .switch input:disabled + .slider {
     opacity: 0.5;
     cursor: wait;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .slider,
+    .slider:before,
+    .reset-button {
+        transition: none;
+    }
 }

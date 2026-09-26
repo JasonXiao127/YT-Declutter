@@ -49,11 +49,33 @@
         try {
             const result = api.storage.local.set({ [STORAGE_KEY]: { ...states } });
             if (result && typeof result.catch === 'function') {
-                result.catch(() => { /* quota / invalidated context; stays in-memory */ });
+                result.catch((err) => { flagPersistError(); });
             }
         } catch (err) {
-            /* extension context invalidated; nothing to save */
+            flagPersistError();
         }
+    }
+
+    function flagPersistError() {
+        // Transient user signal: in-memory state diverged from disk.
+        try {
+            if (resetButton) {
+                const prev = resetButton.textContent;
+                resetButton.title = 'Save failed — changes kept for this session only';
+                resetButton.dataset.persistError = '1';
+                setTimeout(() => {
+                    try {
+                        if (resetButton.dataset.persistError) {
+                            delete resetButton.dataset.persistError;
+                            resetButton.title = '';
+                            if (resetButton.textContent !== prev && !resetArmed) {
+                                resetButton.textContent = 'Reset to Defaults';
+                            }
+                        }
+                    } catch (err) { /* ignore */ }
+                }, 3000);
+            }
+        } catch (err) { /* ignore */ }
     }
 
     function refreshCheckbox(feature) {
@@ -106,10 +128,11 @@
             row.className = 'toggle-row';
 
             const label = document.createElement('label');
+            label.className = 'toggle-label';
             label.textContent = feature.label;
             label.htmlFor = `toggle-${feature.key}`;
 
-            const switchWrap = document.createElement('label');
+            const switchWrap = document.createElement('span');
             switchWrap.className = 'switch';
 
             const input = document.createElement('input');
@@ -244,10 +267,6 @@
     setUiEnabled(false);
     subscribeToExternalChanges();
     try {
-        const api = getApi();
-        if (api && api.runtime && typeof api.runtime.getManifest === 'function') {
-            api.runtime.getManifest();
-        }
         loadStates();
     } catch (err) {
         loadFailed();

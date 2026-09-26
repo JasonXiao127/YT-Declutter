@@ -20,34 +20,55 @@
         return null;
     }
 
+    const KEY_RE = /^[a-z0-9_]+$/;
+
     function buildCss() {
-        return FEATURES.filter(feature => Array.isArray(feature.selectors) && feature.selectors.length > 0).map(feature =>
+        return FEATURES.filter(feature =>
+            feature && typeof feature.key === 'string' && KEY_RE.test(feature.key) &&
+            Array.isArray(feature.selectors) && feature.selectors.length > 0
+        ).map(feature =>
             `html:not(.dcltr-show-${feature.key}) :is(${feature.selectors.join(', ')}) { display: none !important; }\n`
         ).join('');
     }
 
     function injectStyle() {
-        let style = document.getElementById(STYLE_ID);
-        if (!style) {
-            style = document.createElement('style');
-            style.id = STYLE_ID;
-            (document.head || document.documentElement).appendChild(style);
+        try {
+            const parent = (document.head || document.documentElement);
+            if (!parent || typeof document.createElement !== 'function') return false;
+            let style = document.getElementById(STYLE_ID);
+            if (!style) {
+                style = document.createElement('style');
+                style.id = STYLE_ID;
+                parent.appendChild(style);
+            }
+            style.textContent = buildCss();
+            return true;
+        } catch (err) {
+            return true;
         }
-        style.textContent = buildCss();
     }
 
-    injectStyle();
+    if (!injectStyle()) {
+        document.addEventListener('DOMContentLoaded', () => { injectStyle(); }, { once: true });
+    }
 
     let cachedStates = { ...DEFAULTS };
 
     function applyHiding(states) {
-        for (const feature of FEATURES) {
-            if (feature.behavior || !Array.isArray(feature.selectors) || feature.selectors.length === 0) continue;
-            document.documentElement.classList.toggle(
-                `dcltr-show-${feature.key}`,
-                !states[feature.key]
-            );
-        }
+        try {
+            const root = document.documentElement;
+            if (!root || !root.classList) return;
+            for (const feature of FEATURES) {
+                try {
+                    if (!feature || feature.behavior || !Array.isArray(feature.selectors) || feature.selectors.length === 0) continue;
+                    if (typeof feature.key !== 'string' || !KEY_RE.test(feature.key)) continue;
+                    root.classList.toggle(
+                        `dcltr-show-${feature.key}`,
+                        !states[feature.key]
+                    );
+                } catch (err) { /* per-feature failure must not abort loop */ }
+            }
+        } catch (err) { /* document unavailable */ }
     }
 
     function sanitize(stored) {
@@ -86,8 +107,17 @@
 
     function toWatchHref(href) {
         try {
+            if (typeof href !== 'string' || !href.includes('/shorts/')) return null;
+            // Reject protocol-relative URLs outright: `//evil.com/shorts/x`
+            // starts with `/` but resolves off-origin.
+            if (href.startsWith('//')) return null;
             const url = new URL(href, location.origin);
-            if (!href.startsWith('/') && !/(^|\.)youtube\.com$/.test(url.hostname)) return null;
+            const isRelative = href.startsWith('/') && !href.startsWith('//');
+            if (isRelative) {
+                if (url.origin !== location.origin) return null;
+            } else {
+                if (!/(^|\.)youtube\.com$/.test(url.hostname)) return null;
+            }
             const id = extractShortsId(url.pathname);
             if (!id) return null;
             return buildWatchUrl(id, url.search);
@@ -96,14 +126,24 @@
         }
     }
 
+    function isAnchorElement(node) {
+        return !!node && node.nodeType === 1 &&
+            typeof node.tagName === 'string' && node.tagName.toUpperCase() === 'A' &&
+            typeof node.getAttribute === 'function';
+    }
+
     function rewriteAnchor(anchor) {
         try {
+            if (!isAnchorElement(anchor)) return;
             const href = anchor.getAttribute('href');
             if (!href || !href.includes('/shorts/')) return;
             if (anchor.hasAttribute(ORIGINAL_HREF_ATTR)) {
-                if (href.includes('/shorts/')) {
-                    const watch = toWatchHref(href);
-                    if (watch && href !== watch) anchor.setAttribute('href', watch);
+                // YouTube may have re-rendered a new Shorts ID over our rewritten link.
+                // Update the stored original so restore() returns the latest, not stale.
+                const watch = toWatchHref(href);
+                if (watch && href !== watch) {
+                    anchor.setAttribute(ORIGINAL_HREF_ATTR, href);
+                    anchor.setAttribute('href', watch);
                 }
                 return;
             }
@@ -117,8 +157,12 @@
     function scanAndRewrite(root) {
         try {
             const scope = root && root.querySelectorAll ? root : document;
-            if (scope.tagName === 'A') rewriteAnchor(scope);
-            const anchors = scope.querySelectorAll('a[href*="/shorts/"]');
+            if (isAnchorElement(scope)) rewriteAnchor(scope);
+            // Skip our own rewrites: query excludes already-processed anchors
+            // to avoid re-scanning on self-triggered href mutations.
+            const anchors = scope.querySelectorAll
+                ? scope.querySelectorAll('a[href*="/shorts/"]:not([data-dcltr-original-href])')
+                : [];
             for (const anchor of anchors) rewriteAnchor(anchor);
         } catch (err) { /* ignore */ }
     }
@@ -127,9 +171,19 @@
         try {
             const anchors = document.querySelectorAll(`a[${ORIGINAL_HREF_ATTR}]`);
             for (const anchor of anchors) {
-                const original = anchor.getAttribute(ORIGINAL_HREF_ATTR);
-                if (original) anchor.setAttribute('href', original);
-                anchor.removeAttribute(ORIGINAL_HREF_ATTR);
+                try {
+                    const original = anchor.getAttribute(ORIGINAL_HREF_ATTR);
+                    const current = anchor.getAttribute('href');
+                    if (original) {
+                        const expected = toWatchHref(original);
+                        // Only overwrite if current is still our rewrite.
+                        // If YouTube legitimately changed the link since, don't clobber it.
+                        if (!current || current === expected) {
+                            anchor.setAttribute('href', original);
+                        }
+                    }
+                    anchor.removeAttribute(ORIGINAL_HREF_ATTR);
+                } catch (err) { /* per-anchor */ }
             }
         } catch (err) { /* ignore */ }
     }
@@ -151,11 +205,19 @@
             const target = event.target;
             if (!target || !target.closest) return;
             const anchor = target.closest('a[href*="/shorts/"]');
-            if (!anchor) return;
+            if (!anchor || anchor.hasAttribute(ORIGINAL_HREF_ATTR)) {
+                // Already rewritten to /watch: let normal navigation proceed.
+                // Only intercept un-rewritten Shorts links (race with observer).
+                if (anchor && anchor.hasAttribute(ORIGINAL_HREF_ATTR)) return;
+                if (!anchor) return;
+            }
             const watch = toWatchHref(anchor.getAttribute('href'));
             if (!watch) return;
             event.preventDefault();
             event.stopPropagation();
+            // Intentional: click creates a history entry (Back returns to feed),
+            // while direct /shorts/ page loads use replace() to avoid
+            // leaving the Shorts URL in history.
             location.href = watch;
         } catch (err) { /* ignore */ }
     }
@@ -163,6 +225,50 @@
     let shortsObserver = null;
     let shortsRedirectStarted = false;
     let lastCheckedUrl = location.href;
+    let pendingRewriteNodes = [];
+    let rewriteScheduled = false;
+
+    function flushPendingRewrites() {
+        rewriteScheduled = false;
+        if (!isShortsBehaviorEnabled()) {
+            pendingRewriteNodes = [];
+            return;
+        }
+        const batch = pendingRewriteNodes;
+        pendingRewriteNodes = [];
+        try {
+            for (const node of batch) {
+                if (!node || node.nodeType !== 1) continue;
+                if (isAnchorElement(node)) {
+                    rewriteAnchor(node);
+                } else if (node.querySelectorAll) {
+                    scanAndRewrite(node);
+                }
+            }
+        } catch (err) { /* ignore */ }
+        if (location.href !== lastCheckedUrl) checkUrlChange();
+    }
+
+    function scheduleRewrite(nodes) {
+        for (const n of nodes) {
+            if (n && n.nodeType === 1) pendingRewriteNodes.push(n);
+        }
+        // Cap batch to avoid unbounded growth on huge SPA renders.
+        if (pendingRewriteNodes.length > 500) {
+            pendingRewriteNodes = pendingRewriteNodes.slice(-500);
+        }
+        if (rewriteScheduled) return;
+        rewriteScheduled = true;
+        try {
+            if (typeof requestAnimationFrame === 'function') {
+                requestAnimationFrame(flushPendingRewrites);
+            } else {
+                setTimeout(flushPendingRewrites, 0);
+            }
+        } catch (err) {
+            setTimeout(flushPendingRewrites, 0);
+        }
+    }
 
     function checkUrlChange() {
         if (location.href !== lastCheckedUrl) {
@@ -181,34 +287,44 @@
         shortsRedirectStarted = true;
         lastCheckedUrl = location.href;
         try {
+            const root = document.documentElement;
+            if (!root) return;
             shortsObserver = new MutationObserver((mutations) => {
-                let needsUrlCheck = false;
+                let hrefTargets = null;
+                let addedBatch = null;
                 for (const mutation of mutations) {
-                    if (mutation.type === 'attributes' && mutation.attributeName === 'href' && mutation.target && mutation.target.tagName === 'A') {
-                        rewriteAnchor(mutation.target);
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'href') {
+                        const t = mutation.target;
+                        // Skip our own rewrites: they carry the marker attr
+                        // and no longer contain /shorts/.
+                        if (!isAnchorElement(t)) continue;
+                        try {
+                            const h = t.getAttribute('href');
+                            if (t.hasAttribute(ORIGINAL_HREF_ATTR) && (!h || !h.includes('/shorts/'))) continue;
+                            if (!h || !h.includes('/shorts/')) continue;
+                        } catch (err) { continue; }
+                        (hrefTargets || (hrefTargets = [])).push(t);
                     } else if (mutation.addedNodes && mutation.addedNodes.length > 0) {
-                        for (const node of mutation.addedNodes) {
-                            if (!node || node.nodeType !== 1) continue;
-                            if (node.tagName === 'A') {
-                                rewriteAnchor(node);
-                            } else if (node.querySelectorAll) {
-                                scanAndRewrite(node);
-                            }
-                            needsUrlCheck = true;
-                        }
-                    } else {
-                        needsUrlCheck = true;
+                        (addedBatch || (addedBatch = [])).push(...mutation.addedNodes);
                     }
                 }
-                if (needsUrlCheck || location.href !== lastCheckedUrl) checkUrlChange();
+                if (hrefTargets) {
+                    for (const t of hrefTargets) rewriteAnchor(t);
+                }
+                if (addedBatch) scheduleRewrite(addedBatch);
+                if ((!hrefTargets && !addedBatch) && location.href !== lastCheckedUrl) checkUrlChange();
             });
-            shortsObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['href'] });
+            // No `attributes: href` subscription: rewrites are handled
+            // synchronously + via childList batching, avoiding self-trigger loops.
+            shortsObserver.observe(root, { childList: true, subtree: true });
         } catch (err) { /* observer unavailable */ }
     }
 
     function stopShortsRedirect() {
         shortsRedirectStarted = false;
         lastCheckedUrl = location.href;
+        pendingRewriteNodes = [];
+        rewriteScheduled = false;
         try {
             if (shortsObserver) {
                 shortsObserver.disconnect();
@@ -223,34 +339,45 @@
         else stopShortsRedirect();
     }
 
-    document.addEventListener('click', onCaptureClick, true);
-
-    for (const eventName of [...NAV_EVENTS, 'yt-navigate-start', 'popstate']) {
-        document.addEventListener(eventName, () => {
-            checkUrlChange();
-            if (isShortsBehaviorEnabled()) maybeRedirectFromShortsPage();
-        });
-        try {
-            window.addEventListener(eventName, () => {
-                checkUrlChange();
-                if (isShortsBehaviorEnabled()) maybeRedirectFromShortsPage();
-            });
-        } catch (err) { /* window unavailable */ }
+    function handleNavEvent() {
+        checkUrlChange();
+        if (isShortsBehaviorEnabled()) maybeRedirectFromShortsPage();
     }
 
+    document.addEventListener('click', onCaptureClick, true);
+
+    // YouTube SPA events fire on `document`; `popstate` fires on `window`.
+    // Listen once each — no duplicate document+window handlers.
+    for (const eventName of [...NAV_EVENTS, 'yt-navigate-start']) {
+        document.addEventListener(eventName, handleNavEvent);
+    }
     try {
-        const originalPushState = history.pushState;
-        const originalReplaceState = history.replaceState;
-        history.pushState = function (...args) {
-            const result = originalPushState.apply(this, args);
-            setTimeout(checkUrlChange, 0);
-            return result;
-        };
-        history.replaceState = function (...args) {
-            const result = originalReplaceState.apply(this, args);
-            setTimeout(checkUrlChange, 0);
-            return result;
-        };
+        window.addEventListener('popstate', handleNavEvent);
+    } catch (err) { /* window unavailable */ }
+
+    try {
+        if (!history.pushState.__dcltrPatched && !history.replaceState.__dcltrPatched) {
+            const originalPushState = history.pushState;
+            const originalReplaceState = history.replaceState;
+            const patchedPush = function (...args) {
+                const result = originalPushState.apply(this, args);
+                setTimeout(checkUrlChange, 0);
+                return result;
+            };
+            const patchedReplace = function (...args) {
+                const result = originalReplaceState.apply(this, args);
+                setTimeout(checkUrlChange, 0);
+                return result;
+            };
+            patchedPush.__dcltrPatched = true;
+            patchedReplace.__dcltrPatched = true;
+            try {
+                patchedPush.toString = originalPushState.toString.bind(originalPushState);
+                patchedReplace.toString = originalReplaceState.toString.bind(originalReplaceState);
+            } catch (err) { /* toString preserve best-effort */ }
+            history.pushState = patchedPush;
+            history.replaceState = patchedReplace;
+        }
     } catch (err) { /* history patch unavailable */ }
 
     // Apply defaults synchronously so first paint does not hide
@@ -260,9 +387,6 @@
 
     for (const eventName of NAV_EVENTS) {
         document.addEventListener(eventName, () => applyHiding(cachedStates));
-        try {
-            window.addEventListener(eventName, () => applyHiding(cachedStates));
-        } catch (err) { /* window unavailable */ }
     }
 
     const storageArea = getStorageArea();
