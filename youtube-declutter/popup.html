@@ -9,9 +9,23 @@
 </head>
 <body>
     <div class="container">
-        <h1>YouTube Declutter</h1>
+        <header class="popup-header">
+            <div class="header-top">
+                <h1>YouTube Declutter</h1>
+                <span class="enabled-count" id="enabled-count" aria-live="polite"></span>
+            </div>
+            <div class="search-wrap">
+                <input type="search" id="search-input" class="search-input" placeholder="Search settings…" autocomplete="off" aria-label="Search settings">
+                <button type="button" id="search-clear" class="search-clear" aria-label="Clear search" hidden>&times;</button>
+            </div>
+        </header>
         <div class="toggle-list" id="toggle-list"></div>
-        <button type="button" id="reset-button" class="reset-button">Reset to Defaults</button>
+        <p class="no-results" id="no-results" hidden>No matching settings. <button type="button" id="no-results-clear" class="link-button">Clear search</button></p>
+        <footer class="footer-actions">
+            <button type="button" id="enable-all" class="action-button" title="Turns everything on — also hides the logo (removes home link) and opens Shorts as regular videos">Enable all</button>
+            <button type="button" id="disable-all" class="action-button" title="Turns everything off — restores YouTube to normal">Disable all</button>
+            <button type="button" id="reset-button" class="reset-button">Reset to Defaults</button>
+        </footer>
         <p class="footer">Changes apply instantly. Hiding the logo also removes the home link.</p>
         <noscript><p class="footer">This popup needs JavaScript to load toggles.</p></noscript>
     </div>

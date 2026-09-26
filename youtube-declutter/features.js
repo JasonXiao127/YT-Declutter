@@ -2,7 +2,9 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'shorts',
         label: 'Shorts',
-        group: 'Feed & Sidebar',
+        description: 'Shorts shelves, tabs, and Shorts videos in feed and sidebar.',
+        keywords: 'shorts reel vertical shelf tab',
+        group: 'Shorts',
         selectors: [
             'ytd-rich-shelf-renderer[is-shorts]',
             'ytd-rich-section-renderer:has(ytd-rich-shelf-renderer[is-shorts])',
@@ -26,25 +28,52 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'shorts_as_watch',
         label: 'Open Shorts as regular videos',
-        group: 'Feed & Sidebar',
+        description: 'Rewrite Shorts links so they open as normal watch pages.',
+        keywords: 'shorts watch redirect player normal',
+        group: 'Shorts',
+        parent: 'shorts',
         behavior: 'shortsToWatch',
         defaultEnabled: false
     },
     {
-        key: 'comments',
-        label: 'Comments',
-        group: 'Feed & Sidebar',
+        key: 'category_chips',
+        label: 'Category Chips',
+        description: 'Filter chips bar above the home feed.',
+        keywords: 'filter chips categories topics feed',
+        group: 'Home / Feed',
         selectors: [
-            '#comments',
-            'ytd-comments',
-            'ytd-item-section-renderer:has(#comments)',
-            'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-comments-section"]'
+            'ytd-feed-filter-chip-bar-renderer',
+            'ytd-feed-filter-chip-bar-renderer #chips-wrapper'
+        ]
+    },
+    {
+        key: 'top_news',
+        label: 'Top News Section',
+        description: 'Breaking and Top News shelves in the feed.',
+        keywords: 'news breaking top shelf feed',
+        group: 'Home / Feed',
+        selectors: [
+            'ytd-rich-section-renderer:has(yt-formatted-string[title*="top news" i])',
+            'ytd-rich-section-renderer:has(yt-formatted-string[title*="breaking news" i])'
+        ]
+    },
+    {
+        key: 'surveys',
+        label: 'Feedback Surveys',
+        description: 'Inline feedback and survey prompts.',
+        keywords: 'survey feedback poll prompt',
+        group: 'Home / Feed',
+        selectors: [
+            'ytd-inline-survey-renderer',
+            '#attached-survey'
         ]
     },
     {
         key: 'ads_playables',
         label: 'Ads, Playables & Nag Toasts',
-        group: 'Feed & Sidebar',
+        description: 'Playables links, masthead ads, ad slots, and blocker nag toasts.',
+        keywords: 'ads playables games promo masthead nag blocker toast',
+        group: 'Home / Feed',
         selectors: [
             'a[href*="/playables"]',
             'ytd-rich-section-renderer:has(a[href*="/playables"])',
@@ -55,36 +84,11 @@ globalThis.YT_DCLTR_FEATURES = [
         ]
     },
     {
-        key: 'category_chips',
-        label: 'Category Chips',
-        group: 'Feed & Sidebar',
-        selectors: [
-            'ytd-feed-filter-chip-bar-renderer',
-            'ytd-feed-filter-chip-bar-renderer #chips-wrapper'
-        ]
-    },
-    {
-        key: 'top_news',
-        label: 'Top News Section',
-        group: 'Feed & Sidebar',
-        selectors: [
-            'ytd-rich-section-renderer:has(yt-formatted-string[title*="top news" i])',
-            'ytd-rich-section-renderer:has(yt-formatted-string[title*="breaking news" i])'
-        ]
-    },
-    {
-        key: 'surveys',
-        label: 'Feedback Surveys',
-        group: 'Feed & Sidebar',
-        selectors: [
-            'ytd-inline-survey-renderer',
-            '#attached-survey'
-        ]
-    },
-    {
         key: 'guide_sections',
         label: 'Sidebar Sections (Explore, More from YouTube)',
-        group: 'Feed & Sidebar',
+        description: 'Explore, Shopping, Premium, and More from YouTube sidebar sections.',
+        keywords: 'sidebar guide explore shopping premium more sections',
+        group: 'Home / Feed',
         selectors: [
             'ytd-guide-section-renderer:has(a[href="/feed/trending"])',
             'ytd-guide-section-renderer:has(a[href="/feed/shopping"])',
@@ -99,7 +103,9 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'join_button',
         label: 'Join Buttons',
-        group: 'Feed & Sidebar',
+        description: 'Channel Join and membership buttons.',
+        keywords: 'join member sponsor membership',
+        group: 'Home / Feed',
         selectors: [
             'yt-button-view-model:has(a[href*="/join"])',
             'yt-button-shape:has(a[href*="/join"])',
@@ -110,6 +116,8 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'notifications',
         label: 'Notifications Bell',
+        description: 'Bell icon in the top bar.',
+        keywords: 'notifications bell top bar',
         group: 'Top Bar',
         selectors: [
             'ytd-notification-topbar-button-renderer',
@@ -119,6 +127,8 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'create_button',
         label: 'Create Button (Top Bar Only)',
+        description: 'Create and Upload button in the top bar.',
+        keywords: 'create upload top bar',
         group: 'Top Bar',
         selectors: [
             'ytd-masthead ytd-button-renderer:has(button[aria-label*="Create" i])',
@@ -129,12 +139,16 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'voice_search',
         label: 'Voice Search Button',
+        description: 'Microphone button next to search.',
+        keywords: 'voice microphone search top bar',
         group: 'Top Bar',
         selectors: ['#voice-search-button']
     },
     {
         key: 'ai_search',
         label: 'AI Search (Ask YouTube)',
+        description: 'Ask and AI search button in the top bar.',
+        keywords: 'ai ask search top bar gemini',
         group: 'Top Bar',
         selectors: [
             'ytd-masthead ytd-ask-search-button-renderer',
@@ -144,6 +158,8 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'youtube_logo',
         label: 'Logo & Seasonal Doodles',
+        description: 'Top-left logo and doodles. Also removes the home link.',
+        keywords: 'logo doodle yoodle home top bar',
         group: 'Top Bar',
         defaultHidden: false,
         selectors: [
@@ -153,8 +169,23 @@ globalThis.YT_DCLTR_FEATURES = [
         ]
     },
     {
+        key: 'comments',
+        label: 'Comments',
+        description: 'Comments section under videos and in the engagement panel.',
+        keywords: 'comments replies discussion watch',
+        group: 'Watch Page',
+        selectors: [
+            '#comments',
+            'ytd-comments',
+            'ytd-item-section-renderer:has(#comments)',
+            'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-comments-section"]'
+        ]
+    },
+    {
         key: 'player_overlays',
         label: 'Player Overlays (End Screens, Paid Promotion)',
+        description: 'End screens, paid promotion, and reaction panels over the player.',
+        keywords: 'player overlay end screen paid promotion reaction watch',
         group: 'Watch Page',
         selectors: [
             '.ytp-ce-element',
@@ -166,6 +197,8 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'video_action_buttons',
         label: 'Video Actions (Download, Thanks, Clip)',
+        description: 'Download, Thanks, Clip, and purchase buttons under the video.',
+        keywords: 'download thanks clip purchase actions watch',
         group: 'Watch Page',
         selectors: [
             '#below ytd-download-button-renderer',
@@ -178,6 +211,8 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'merch_and_fundraising',
         label: 'Merch & Fundraiser Shelves',
+        description: 'Merch, donation, and badge shelves around the video.',
+        keywords: 'merch fundraiser donation shelf store watch',
         group: 'Watch Page',
         selectors: [
             'ytd-merch-shelf-renderer',
@@ -189,12 +224,16 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'ai_summary',
         label: 'AI Video Summary',
+        description: 'AI-generated video summary box below the video.',
+        keywords: 'ai summary description watch',
         group: 'Watch Page',
         selectors: ['#below [has-video-summary]']
     },
     {
         key: 'description_extras',
         label: 'Description Extras (Chapters, Transcript)',
+        description: 'Chapters, transcript, infocards, and teaser carousel.',
+        keywords: 'chapters transcript infocards teaser description watch',
         group: 'Watch Page',
         selectors: [
             '#below ytd-horizontal-card-list-renderer[modern-chapters]',
@@ -206,6 +245,8 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'info_panels',
         label: 'Info Panels (Clarify Box)',
+        description: 'Fact-check and clarify info box. Shown by default.',
+        keywords: 'info clarify fact check panel watch',
         group: 'Watch Page',
         defaultHidden: false,
         selectors: [
@@ -215,7 +256,9 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'search_fluff',
         label: 'Search Fluff (Shelves, Movies, Promos)',
-        group: 'Search & Channels',
+        description: 'Movie shelves, promos, and secondary panels in search results.',
+        keywords: 'search movies shelf promo secondary',
+        group: 'Search & Channel',
         selectors: [
             'ytd-search ytd-shelf-renderer[thumbnail-style]:has(ytd-movie-renderer, a[href*="/movies"], a[href*="/store"], a[href*="/promo"])',
             'ytd-search ytd-horizontal-card-list-renderer',
@@ -226,7 +269,9 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'channel_page_extras',
         label: 'Channel Extras (Banner, Links, Member Shoutouts)',
-        group: 'Search & Channels',
+        description: 'Channel banner, header links, and member shoutouts.',
+        keywords: 'channel banner links shoutout members header',
+        group: 'Search & Channel',
         selectors: [
             '#page-header-banner',
             'ytd-c4-tabbed-header-renderer yt-attribution-view-model',
