@@ -5,7 +5,10 @@
     const FEATURES = Array.isArray(globalThis.YT_DCLTR_FEATURES) ? globalThis.YT_DCLTR_FEATURES : [];
     const DEFAULTS = (globalThis.YT_DCLTR_DEFAULTS && typeof globalThis.YT_DCLTR_DEFAULTS === 'object')
         ? globalThis.YT_DCLTR_DEFAULTS
-        : Object.fromEntries(FEATURES.map(feature => [feature.key, feature.defaultHidden !== false]));
+        : Object.fromEntries(FEATURES.map(feature => [
+            feature.key,
+            feature.behavior ? !!feature.defaultEnabled : feature.defaultHidden !== false
+        ]));
 
     const listEl = document.getElementById('toggle-list');
     const resetButton = document.getElementById('reset-button');

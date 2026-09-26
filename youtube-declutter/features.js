@@ -23,6 +23,13 @@ globalThis.YT_DCLTR_FEATURES = [
         ]
     },
     {
+        key: 'shorts_as_watch',
+        label: 'Open Shorts as regular videos',
+        group: 'Feed & Sidebar',
+        behavior: 'shortsToWatch',
+        defaultEnabled: false
+    },
+    {
         key: 'comments',
         label: 'Comments',
         group: 'Feed & Sidebar',
@@ -227,5 +234,8 @@ globalThis.YT_DCLTR_FEATURES = [
 ];
 
 globalThis.YT_DCLTR_DEFAULTS = Object.fromEntries(
-    globalThis.YT_DCLTR_FEATURES.map(feature => [feature.key, feature.defaultHidden !== false])
+    globalThis.YT_DCLTR_FEATURES.map(feature => [
+        feature.key,
+        feature.behavior ? !!feature.defaultEnabled : feature.defaultHidden !== false
+    ])
 );
