@@ -33,8 +33,15 @@
     let states = { ...DEFAULTS };
     let loaded = false;
     let revealed = false;
+    let suppressToggleSave = false;
+    let buildFailed = false;
     const pendingUserChanges = new Set();
     let collapsedGroups = loadCollapsed();
+    const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+    function isSafeKey(key) {
+        return typeof key === 'string' && /^[a-z0-9_]+$/.test(key) && !FORBIDDEN_KEYS.has(key);
+    }
 
     function loadCollapsed() {
         try {
@@ -62,12 +69,10 @@
     function setUiEnabled(enabled) {
         if (listEl) {
             listEl.querySelectorAll('input[type="checkbox"]').forEach((input) => {
-                // Child toggle stays disabled when its parent is off.
-                if (input.dataset.parent && !states[input.dataset.parent]) {
-                    input.disabled = true;
-                    return;
-                }
                 input.disabled = !enabled;
+            });
+            listEl.querySelectorAll('.group-actions .link-button').forEach((btn) => {
+                btn.disabled = !enabled;
             });
         }
         if (resetButton) resetButton.disabled = !enabled;
@@ -142,37 +147,30 @@
         const input = document.getElementById(`toggle-${feature.key}`);
         if (input) {
             input.checked = !!states[feature.key];
-            // Enforce parent dependency for nested child toggles.
-            if (input.dataset.parent && !states[input.dataset.parent]) {
-                input.disabled = true;
-            } else if (loaded) {
-                input.disabled = false;
-            }
+            input.disabled = !loaded;
         }
-        updateCounts();
-        if (feature.key === 'shorts') syncChildToggles();
     }
 
     function syncChildToggles() {
         FEATURES.filter((f) => f.parent).forEach((child) => {
             const input = document.getElementById(`toggle-${child.key}`);
             if (!input) return;
-            const parentOn = !!states[child.parent];
-            input.disabled = !loaded || !parentOn;
+            input.disabled = !loaded;
             const row = input.closest('.toggle-row');
-            if (row) row.classList.toggle('child-disabled', !parentOn);
+            if (row) row.classList.toggle('child-disabled', false);
         });
     }
 
     function refreshAll() {
-        FEATURES.forEach(refreshCheckbox);
+        for (const feature of FEATURES) refreshCheckbox(feature);
         syncChildToggles();
         updateCounts();
     }
 
     function applyStored(stored) {
-        if (!stored) return;
+        if (!stored || typeof stored !== 'object') return;
         for (const feature of FEATURES) {
+            if (!isSafeKey(feature.key)) continue;
             if (typeof stored[feature.key] === 'boolean' && !pendingUserChanges.has(feature.key)) {
                 states[feature.key] = stored[feature.key];
             }
@@ -238,18 +236,31 @@
 
     function setAllEnabled(enabled) {
         if (!loaded) return;
+        let changed = false;
         if (!enabled) {
-            for (const f of FEATURES) states[f.key] = false;
+            for (const f of FEATURES) {
+                if (!!states[f.key] !== false) {
+                    states[f.key] = false;
+                    changed = true;
+                }
+            }
         } else {
             // Pass 1: parents and standalone features first (order-independent).
             for (const f of FEATURES) {
-                if (!f.parent) states[f.key] = true;
+                if (!f.parent && !states[f.key]) {
+                    states[f.key] = true;
+                    changed = true;
+                }
             }
             // Pass 2: children whose parent is now on.
             for (const f of FEATURES) {
-                if (f.parent && states[f.parent]) states[f.key] = true;
+                if (f.parent && states[f.parent] && !states[f.key]) {
+                    states[f.key] = true;
+                    changed = true;
+                }
             }
         }
+        if (!changed) return;
         persist();
         refreshAll();
         applySearchFilter();
@@ -263,6 +274,8 @@
             empty.className = 'footer';
             empty.textContent = 'Could not load toggle definitions (features.js missing).';
             listEl.appendChild(empty);
+            if (noResults) noResults.hidden = true;
+            updateCounts();
             return;
         }
         const query = currentQuery();
@@ -276,8 +289,9 @@
             details.dataset.keys = groupFeatures.map((f) => f.key).join(',');
             details.open = query ? true : !collapsedGroups[group];
             details.addEventListener('toggle', () => {
-                // Don't persist transient auto-expands during search.
-                if (currentQuery()) return;
+                // Don't persist transient auto-expands during search or
+                // programmatic restores from applySearchFilter.
+                if (suppressToggleSave || currentQuery()) return;
                 if (details.open) delete collapsedGroups[group];
                 else collapsedGroups[group] = true;
                 saveCollapsed();
@@ -312,6 +326,7 @@
             const sep = document.createElement('span');
             sep.className = 'group-actions-sep';
             sep.textContent = '·';
+            sep.setAttribute('aria-hidden', 'true');
             const noneBtn = document.createElement('button');
             noneBtn.type = 'button';
             noneBtn.className = 'link-button';
@@ -341,14 +356,17 @@
                 label.textContent = feature.label;
                 label.htmlFor = `toggle-${feature.key}`;
                 textWrap.appendChild(label);
+                let descId = '';
                 if (feature.description) {
                     const desc = document.createElement('span');
                     desc.className = 'toggle-desc';
                     desc.textContent = feature.description;
+                    descId = `desc-${feature.key}`;
+                    desc.id = descId;
                     textWrap.appendChild(desc);
                 }
 
-                const switchWrap = document.createElement('span');
+                const switchWrap = document.createElement('label');
                 switchWrap.className = 'switch';
 
                 const input = document.createElement('input');
@@ -357,7 +375,7 @@
                 input.checked = !!states[feature.key];
                 input.disabled = !loaded;
                 if (feature.parent) input.dataset.parent = feature.parent;
-                input.setAttribute('aria-label', feature.label);
+                if (descId) input.setAttribute('aria-describedby', descId);
                 input.addEventListener('change', () => {
                     states[feature.key] = input.checked;
                     if (!loaded) {
@@ -371,6 +389,7 @@
 
                 const slider = document.createElement('span');
                 slider.className = 'slider';
+                slider.setAttribute('aria-hidden', 'true');
 
                 switchWrap.append(input, slider);
                 row.append(textWrap, switchWrap);
@@ -390,27 +409,44 @@
     function applySearchFilter() {
         const query = currentQuery();
         if (searchClear) searchClear.hidden = !query;
+        if (FEATURES.length === 0) {
+            if (noResults) noResults.hidden = true;
+            return;
+        }
+        if (buildFailed) {
+            if (noResults) noResults.hidden = true;
+            return;
+        }
         let visibleRows = 0;
-        if (listEl) {
-            listEl.querySelectorAll('details.group').forEach((details) => {
-                let groupVisible = 0;
-                details.querySelectorAll('.toggle-row').forEach((row) => {
-                    const match = !query || (row.dataset.search || '').includes(query);
-                    row.style.display = match ? '' : 'none';
-                    if (match) {
-                        groupVisible += 1;
-                        visibleRows += 1;
+        // Suppress toggle-event saves for programmatic open changes.
+        // Reset async so toggle events queued in the same task are also
+        // covered; the window is one task so genuine user toggles after
+        // the filter returns are still persisted.
+        suppressToggleSave = true;
+        try {
+            if (listEl) {
+                listEl.querySelectorAll('details.group').forEach((details) => {
+                    let groupVisible = 0;
+                    details.querySelectorAll('.toggle-row').forEach((row) => {
+                        const match = !query || (row.dataset.search || '').includes(query);
+                        row.style.display = match ? '' : 'none';
+                        if (match) {
+                            groupVisible += 1;
+                            visibleRows += 1;
+                        }
+                    });
+                    const groupHidden = groupVisible === 0;
+                    details.style.display = groupHidden ? 'none' : '';
+                    // Auto-expand groups with matches while searching.
+                    if (query) {
+                        details.open = true;
+                    } else {
+                        details.open = !collapsedGroups[details.dataset.group];
                     }
                 });
-                const groupHidden = groupVisible === 0;
-                details.style.display = groupHidden ? 'none' : '';
-                // Auto-expand groups with matches while searching.
-                if (query) {
-                    details.open = true;
-                } else {
-                    details.open = !collapsedGroups[details.dataset.group];
-                }
-            });
+            }
+        } finally {
+            setTimeout(() => { suppressToggleSave = false; }, 0);
         }
         if (noResults) noResults.hidden = visibleRows !== 0;
     }
@@ -481,8 +517,14 @@
             const api = getApi();
             if (api && api.storage && api.storage.onChanged) {
                 api.storage.onChanged.addListener((changes, namespace) => {
-                    if (namespace === 'local' && changes[STORAGE_KEY] && changes[STORAGE_KEY].newValue) {
-                        applyStored(changes[STORAGE_KEY].newValue);
+                    if (namespace === 'local' && changes[STORAGE_KEY]) {
+                        if (changes[STORAGE_KEY].newValue) {
+                            applyStored(changes[STORAGE_KEY].newValue);
+                        } else {
+                            // Key deleted: fall back to defaults (matches content.js).
+                            states = { ...DEFAULTS };
+                            pendingUserChanges.clear();
+                        }
                         if (loaded) {
                             refreshAll();
                             applySearchFilter();
@@ -519,6 +561,7 @@
             }
             disarmReset();
             states = { ...DEFAULTS };
+            pendingUserChanges.clear();
             persist();
             refreshAll();
             applySearchFilter();
@@ -543,6 +586,8 @@
         searchInput.addEventListener('input', applySearchFilter);
         searchInput.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
+                // Let empty-Escape close the popup; only hijack to clear text.
+                if (!currentQuery()) return;
                 e.preventDefault();
                 clearSearch();
             }
@@ -555,9 +600,26 @@
         noResultsClear.addEventListener('click', clearSearch);
     }
 
-    buildUi();
-    setUiEnabled(false);
-    applySearchFilter();
+    try {
+        buildUi();
+    } catch (err) {
+        buildFailed = true;
+        try {
+            if (listEl) {
+                listEl.textContent = '';
+                const empty = document.createElement('p');
+                empty.className = 'footer';
+                empty.textContent = 'Could not load settings. Try reopening the popup.';
+                listEl.appendChild(empty);
+            }
+        } catch (ignored) { /* ignore */ }
+    }
+    try {
+        setUiEnabled(false);
+    } catch (err) { /* ignore */ }
+    try {
+        applySearchFilter();
+    } catch (err) { /* ignore */ }
     subscribeToExternalChanges();
     try {
         loadStates();

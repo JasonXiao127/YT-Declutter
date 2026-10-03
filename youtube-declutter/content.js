@@ -14,17 +14,34 @@
 
     function getStorageArea() {
         try {
-            const api = globalThis.chrome ?? globalThis.browser;
-            if (api && api.storage && api.storage.local) return api.storage.local;
+            const chromeApi = globalThis.chrome;
+            if (chromeApi && chromeApi.storage && chromeApi.storage.local) return chromeApi.storage.local;
+            const browserApi = globalThis.browser;
+            if (browserApi && browserApi.storage && browserApi.storage.local) return browserApi.storage.local;
+        } catch (err) { /* unavailable */ }
+        return null;
+    }
+
+    function getExtensionApi() {
+        try {
+            const chromeApi = globalThis.chrome;
+            if (chromeApi && chromeApi.storage) return chromeApi;
+            const browserApi = globalThis.browser;
+            if (browserApi && browserApi.storage) return browserApi;
         } catch (err) { /* unavailable */ }
         return null;
     }
 
     const KEY_RE = /^[a-z0-9_]+$/;
+    const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+    function isSafeKey(key) {
+        return typeof key === 'string' && KEY_RE.test(key) && !FORBIDDEN_KEYS.has(key);
+    }
 
     function buildCss() {
         return FEATURES.filter(feature =>
-            feature && typeof feature.key === 'string' && KEY_RE.test(feature.key) &&
+            feature && !feature.behavior && isSafeKey(feature.key) &&
             Array.isArray(feature.selectors) && feature.selectors.length > 0
         ).map(feature =>
             `html:not(.dcltr-show-${feature.key}) :is(${feature.selectors.join(', ')}) { display: none !important; }\n`
@@ -44,7 +61,7 @@
             style.textContent = buildCss();
             return true;
         } catch (err) {
-            return true;
+            return false;
         }
     }
 
@@ -61,7 +78,7 @@
             for (const feature of FEATURES) {
                 try {
                     if (!feature || feature.behavior || !Array.isArray(feature.selectors) || feature.selectors.length === 0) continue;
-                    if (typeof feature.key !== 'string' || !KEY_RE.test(feature.key)) continue;
+                    if (!isSafeKey(feature.key)) continue;
                     root.classList.toggle(
                         `dcltr-show-${feature.key}`,
                         !states[feature.key]
@@ -73,10 +90,16 @@
 
     function sanitize(stored) {
         const merged = { ...DEFAULTS };
-        if (!stored) return merged;
+        if (!stored || typeof stored !== 'object') return merged;
         for (const feature of FEATURES) {
+            if (!feature || !isSafeKey(feature.key)) continue;
             if (typeof stored[feature.key] === 'boolean') {
-                merged[feature.key] = stored[feature.key];
+                Object.defineProperty(merged, feature.key, {
+                    value: stored[feature.key],
+                    writable: true,
+                    enumerable: true,
+                    configurable: true
+                });
             }
         }
         return merged;
@@ -90,19 +113,27 @@
         return !!cachedStates[SHORTS_BEHAVIOR_KEY];
     }
 
+    // YouTube video IDs are 11 base64url chars. Requiring the full
+    // length keeps non-video /shorts/* subpaths (e.g. /shorts/feed)
+    // from redirecting to a bogus watch page.
+    const SHORTS_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+
     function extractShortsId(pathname) {
         if (!pathname || !pathname.startsWith(SHORTS_PREFIX)) return null;
-        const rest = pathname.slice(SHORTS_PREFIX.length).split('/')[0].split('?')[0].split('#')[0].split('&')[0];
-        return rest || null;
+        const rest = pathname.slice(SHORTS_PREFIX.length).split('/')[0];
+        if (!rest || !SHORTS_ID_RE.test(rest)) return null;
+        return rest;
     }
 
     function buildWatchUrl(shortsId, searchString) {
+        if (!shortsId || !SHORTS_ID_RE.test(shortsId)) return null;
+        const safeId = encodeURIComponent(shortsId);
         let t = null;
         try {
             const params = new URLSearchParams(searchString || '');
             t = params.get('t');
         } catch (err) { /* ignore */ }
-        return t ? `/watch?v=${shortsId}&t=${encodeURIComponent(t)}` : `/watch?v=${shortsId}`;
+        return t ? `/watch?v=${safeId}&t=${encodeURIComponent(t)}` : `/watch?v=${safeId}`;
     }
 
     function toWatchHref(href) {
@@ -193,7 +224,9 @@
         try {
             const id = extractShortsId(location.pathname);
             if (!id) return;
-            location.replace(buildWatchUrl(id, location.search));
+            const watch = buildWatchUrl(id, location.search);
+            if (!watch) return;
+            location.replace(watch);
         } catch (err) { /* ignore */ }
     }
 
@@ -205,12 +238,10 @@
             const target = event.target;
             if (!target || !target.closest) return;
             const anchor = target.closest('a[href*="/shorts/"]');
-            if (!anchor || anchor.hasAttribute(ORIGINAL_HREF_ATTR)) {
-                // Already rewritten to /watch: let normal navigation proceed.
-                // Only intercept un-rewritten Shorts links (race with observer).
-                if (anchor && anchor.hasAttribute(ORIGINAL_HREF_ATTR)) return;
-                if (!anchor) return;
-            }
+            // Already rewritten to /watch: let normal navigation proceed.
+            // Only intercept un-rewritten Shorts links (race with observer).
+            if (!anchor) return;
+            if (anchor.hasAttribute(ORIGINAL_HREF_ATTR)) return;
             const watch = toWatchHref(anchor.getAttribute('href'));
             if (!watch) return;
             event.preventDefault();
@@ -227,15 +258,19 @@
     let lastCheckedUrl = location.href;
     let pendingRewriteNodes = [];
     let rewriteScheduled = false;
+    let fullRescanNeeded = false;
 
     function flushPendingRewrites() {
         rewriteScheduled = false;
         if (!isShortsBehaviorEnabled()) {
             pendingRewriteNodes = [];
+            fullRescanNeeded = false;
             return;
         }
         const batch = pendingRewriteNodes;
         pendingRewriteNodes = [];
+        const needsFullRescan = fullRescanNeeded;
+        fullRescanNeeded = false;
         try {
             for (const node of batch) {
                 if (!node || node.nodeType !== 1) continue;
@@ -245,6 +280,7 @@
                     scanAndRewrite(node);
                 }
             }
+            if (needsFullRescan) scanAndRewrite(document);
         } catch (err) { /* ignore */ }
         if (location.href !== lastCheckedUrl) checkUrlChange();
     }
@@ -254,38 +290,47 @@
             if (n && n.nodeType === 1) pendingRewriteNodes.push(n);
         }
         // Cap batch to avoid unbounded growth on huge SPA renders.
+        // Instead of silently dropping, fall back to a full rescan.
         if (pendingRewriteNodes.length > 500) {
-            pendingRewriteNodes = pendingRewriteNodes.slice(-500);
+            pendingRewriteNodes = [];
+            fullRescanNeeded = true;
         }
         if (rewriteScheduled) return;
         rewriteScheduled = true;
+        // setTimeout (not rAF): rAF pauses in background tabs and would
+        // stall rewrites until the tab is foregrounded.
         try {
-            if (typeof requestAnimationFrame === 'function') {
-                requestAnimationFrame(flushPendingRewrites);
-            } else {
-                setTimeout(flushPendingRewrites, 0);
-            }
-        } catch (err) {
             setTimeout(flushPendingRewrites, 0);
+        } catch (err) {
+            try { setTimeout(flushPendingRewrites, 0); } catch (ignored) { /* ignore */ }
         }
     }
 
     function checkUrlChange() {
-        if (location.href !== lastCheckedUrl) {
+        if (location.href === lastCheckedUrl) return;
+        // Hash-only changes need no rescan (no new Shorts links appear).
+        try {
+            const prev = new URL(lastCheckedUrl);
+            const next = new URL(location.href);
+            prev.hash = '';
+            next.hash = '';
             lastCheckedUrl = location.href;
-            if (isShortsBehaviorEnabled()) {
-                maybeRedirectFromShortsPage();
-                scanAndRewrite(document);
-            }
+            if (prev.href === next.href) return;
+        } catch (err) {
+            lastCheckedUrl = location.href;
+        }
+        if (isShortsBehaviorEnabled()) {
+            maybeRedirectFromShortsPage();
+            scanAndRewrite(document);
         }
     }
 
     function startShortsRedirect() {
-        maybeRedirectFromShortsPage();
-        scanAndRewrite(document);
         if (shortsRedirectStarted) return;
         shortsRedirectStarted = true;
         lastCheckedUrl = location.href;
+        maybeRedirectFromShortsPage();
+        scanAndRewrite(document);
         try {
             const root = document.documentElement;
             if (!root) return;
@@ -314,9 +359,10 @@
                 if (addedBatch) scheduleRewrite(addedBatch);
                 if ((!hrefTargets && !addedBatch) && location.href !== lastCheckedUrl) checkUrlChange();
             });
-            // No `attributes: href` subscription: rewrites are handled
-            // synchronously + via childList batching, avoiding self-trigger loops.
-            shortsObserver.observe(root, { childList: true, subtree: true });
+            // Subscribe to href changes too: YouTube reuses anchors and swaps
+            // hrefs in place. Our own rewrites are skipped by marker check
+            // below, so no self-trigger loop.
+            shortsObserver.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['href'] });
         } catch (err) { /* observer unavailable */ }
     }
 
@@ -324,6 +370,7 @@
         shortsRedirectStarted = false;
         lastCheckedUrl = location.href;
         pendingRewriteNodes = [];
+        fullRescanNeeded = false;
         rewriteScheduled = false;
         try {
             if (shortsObserver) {
@@ -341,14 +388,14 @@
 
     function handleNavEvent() {
         checkUrlChange();
-        if (isShortsBehaviorEnabled()) maybeRedirectFromShortsPage();
     }
 
     document.addEventListener('click', onCaptureClick, true);
 
     // YouTube SPA events fire on `document`; `popstate` fires on `window`.
-    // Listen once each — no duplicate document+window handlers.
-    for (const eventName of [...NAV_EVENTS, 'yt-navigate-start']) {
+    // yt-navigate-start fires before the URL commits, so only listen to
+    // finish/update events to avoid redirecting on a stale URL.
+    for (const eventName of NAV_EVENTS) {
         document.addEventListener(eventName, handleNavEvent);
     }
     try {
@@ -356,26 +403,33 @@
     } catch (err) { /* window unavailable */ }
 
     try {
-        if (!history.pushState.__dcltrPatched && !history.replaceState.__dcltrPatched) {
+        // Patch each method independently: another script may have wrapped
+        // only one of them. (In isolated worlds this is only a fallback;
+        // yt-navigate-* events carry the real SPA detection.)
+        if (history.pushState && !history.pushState.__dcltrPatched) {
             const originalPushState = history.pushState;
-            const originalReplaceState = history.replaceState;
             const patchedPush = function (...args) {
                 const result = originalPushState.apply(this, args);
                 setTimeout(checkUrlChange, 0);
                 return result;
             };
+            patchedPush.__dcltrPatched = true;
+            try {
+                patchedPush.toString = originalPushState.toString.bind(originalPushState);
+            } catch (err) { /* toString preserve best-effort */ }
+            history.pushState = patchedPush;
+        }
+        if (history.replaceState && !history.replaceState.__dcltrPatched) {
+            const originalReplaceState = history.replaceState;
             const patchedReplace = function (...args) {
                 const result = originalReplaceState.apply(this, args);
                 setTimeout(checkUrlChange, 0);
                 return result;
             };
-            patchedPush.__dcltrPatched = true;
             patchedReplace.__dcltrPatched = true;
             try {
-                patchedPush.toString = originalPushState.toString.bind(originalPushState);
                 patchedReplace.toString = originalReplaceState.toString.bind(originalReplaceState);
             } catch (err) { /* toString preserve best-effort */ }
-            history.pushState = patchedPush;
             history.replaceState = patchedReplace;
         }
     } catch (err) { /* history patch unavailable */ }
@@ -392,9 +446,17 @@
     const storageArea = getStorageArea();
     if (storageArea) {
         let settled = false;
+        let safetyTimer = null;
+        const clearSafetyTimer = () => {
+            if (safetyTimer !== null) {
+                try { clearTimeout(safetyTimer); } catch (err) { /* ignore */ }
+                safetyTimer = null;
+            }
+        };
         const applyData = (data) => {
             if (settled) return;
             settled = true;
+            clearSafetyTimer();
             cachedStates = sanitize(data && data[STORAGE_KEY]);
             applyHiding(cachedStates);
             syncShortsBehavior();
@@ -402,13 +464,14 @@
         const applyCurrent = () => {
             if (settled) return;
             settled = true;
+            clearSafetyTimer();
             applyHiding(cachedStates);
             syncShortsBehavior();
         };
         try {
             const result = storageArea.get(STORAGE_KEY, (data) => {
                 try {
-                    const api = globalThis.chrome ?? globalThis.browser;
+                    const api = getExtensionApi();
                     if (api && api.runtime && api.runtime.lastError) {
                         applyCurrent();
                         return;
@@ -420,6 +483,8 @@
             if (result && typeof result.then === 'function') {
                 result.then(applyData, applyCurrent);
             }
+            // Safety net: never stay on defaults forever if storage hangs.
+            safetyTimer = setTimeout(() => { applyCurrent(); }, 2000);
         } catch (err) {
             cachedStates = { ...DEFAULTS };
             applyHiding(cachedStates);
@@ -427,7 +492,7 @@
         }
 
         try {
-            const api = globalThis.chrome ?? globalThis.browser;
+            const api = getExtensionApi();
             if (api && api.storage && api.storage.onChanged) {
                 api.storage.onChanged.addListener((changes, namespace) => {
                     if (namespace === 'local' && changes[STORAGE_KEY]) {

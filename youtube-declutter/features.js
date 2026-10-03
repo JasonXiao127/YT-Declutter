@@ -1,3 +1,7 @@
+// Note: several selectors match English aria-label/title substrings
+// (e.g. "Notifications", "Create", "Top News"). On non-English YouTube
+// those features silently do nothing — an inherent limitation of
+// label-based selectors, not a bug in the hiding logic.
 globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'shorts',
@@ -11,16 +15,13 @@ globalThis.YT_DCLTR_FEATURES = [
             'ytd-reel-shelf-renderer',
             'ytd-guide-entry-renderer:has(a[href^="/shorts"])',
             'ytd-mini-guide-entry-renderer:has(a[href^="/shorts"])',
-            'ytd-compact-video-renderer:has(a[href^="/shorts/"], a[href*="/shorts/"])',
-            'ytd-grid-video-renderer:has(a[href^="/shorts/"], a[href*="/shorts/"])',
-            'ytd-video-renderer:has(a[href^="/shorts/"], a[href*="/shorts/"])',
-            'yt-lockup-view-model:has(a[href^="/shorts/"], a[href*="/shorts/"])',
-            'yt-shelf-view-model:has(a[href^="/shorts/"], a[href*="/shorts/"])',
+            'ytd-compact-video-renderer:has(a[href*="/shorts/"])',
+            'ytd-grid-video-renderer:has(a[href*="/shorts/"])',
+            'ytd-video-renderer:has(a[href*="/shorts/"])',
+            'yt-lockup-view-model:has(a[href*="/shorts/"])',
             'ytd-shorts',
             'ytd-reel-video-renderer',
             'ytd-reel-overlay-renderer',
-            'grid-shelf-view-model:has(a[href^="/shorts/"])',
-            'ytd-item-section-renderer:has(grid-shelf-view-model:has(a[href^="/shorts/"]))',
             'yt-chip-cloud-chip-renderer:has(yt-formatted-string[title*="shorts" i])',
             'yt-tab-shape[tab-title*="shorts" i]'
         ]
@@ -28,10 +29,9 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'shorts_as_watch',
         label: 'Open Shorts as regular videos',
-        description: 'Rewrite Shorts links so they open as normal watch pages.',
+        description: 'Rewrite Shorts links so they open as normal watch pages. Works best with Shorts hiding off — when both are on, rewritten links reappear as watch videos.',
         keywords: 'shorts watch redirect player normal',
         group: 'Shorts',
-        parent: 'shorts',
         behavior: 'shortsToWatch',
         defaultEnabled: false
     },
@@ -42,8 +42,7 @@ globalThis.YT_DCLTR_FEATURES = [
         keywords: 'filter chips categories topics feed',
         group: 'Home / Feed',
         selectors: [
-            'ytd-feed-filter-chip-bar-renderer',
-            'ytd-feed-filter-chip-bar-renderer #chips-wrapper'
+            'ytd-feed-filter-chip-bar-renderer'
         ]
     },
     {
@@ -75,11 +74,15 @@ globalThis.YT_DCLTR_FEATURES = [
         keywords: 'ads playables games promo masthead nag blocker toast',
         group: 'Home / Feed',
         selectors: [
-            'a[href*="/playables"]',
             'ytd-rich-section-renderer:has(a[href*="/playables"])',
             'ytd-rich-item-renderer:has(a[href*="/playables"])',
+            'ytd-compact-video-renderer:has(a[href*="/playables"])',
+            'ytd-video-renderer:has(a[href*="/playables"])',
+            'yt-lockup-view-model:has(a[href*="/playables"])',
             'ytd-video-masthead-ad-renderer',
             'ytd-ad-slot-renderer',
+            'ytd-in-feed-ad-layout-renderer',
+            'a[href*="/playables"]',
             'tp-yt-paper-toast#toast:has(yt-button-renderer#action-button a[href*="blocker"])'
         ]
     },
@@ -90,14 +93,14 @@ globalThis.YT_DCLTR_FEATURES = [
         keywords: 'sidebar guide explore shopping premium more sections',
         group: 'Home / Feed',
         selectors: [
-            'ytd-guide-section-renderer:has(a[href="/feed/trending"])',
-            'ytd-guide-section-renderer:has(a[href="/feed/shopping"])',
-            'ytd-guide-section-renderer:has(a[href="/feed/explore"])',
-            'ytd-guide-section-renderer:has(a[href="/premium"])',
-            'ytd-guide-section-renderer:has(a[href="/feed/storefront"])',
-            'ytd-guide-section-renderer:has(a[href="https://music.youtube.com"])',
-            'ytd-guide-entry-renderer:has(a[href="/premium"])',
-            'ytd-guide-entry-renderer:has(a[href="/feed/storefront"])'
+            'ytd-guide-section-renderer:has(a[href^="/feed/trending"])',
+            'ytd-guide-section-renderer:has(a[href^="/feed/shopping"])',
+            'ytd-guide-section-renderer:has(a[href^="/feed/explore"])',
+            'ytd-guide-section-renderer:has(a[href^="/premium"])',
+            'ytd-guide-section-renderer:has(a[href^="/feed/storefront"])',
+            'ytd-guide-section-renderer:has(a[href*="music.youtube.com"])',
+            'ytd-guide-entry-renderer:has(a[href^="/premium"])',
+            'ytd-guide-entry-renderer:has(a[href^="/feed/storefront"])'
         ]
     },
     {
@@ -152,7 +155,7 @@ globalThis.YT_DCLTR_FEATURES = [
         group: 'Top Bar',
         selectors: [
             'ytd-masthead ytd-ask-search-button-renderer',
-            'ytd-masthead button[aria-label*="Ask" i]'
+            'ytd-masthead button[aria-label^="Ask" i]'
         ]
     },
     {
@@ -205,7 +208,7 @@ globalThis.YT_DCLTR_FEATURES = [
             '#below yt-button-view-model:has(button[aria-label*="thanks" i])',
             '#below yt-button-view-model:has(button[aria-label*="clip" i])',
             '#below ytd-video-owner-renderer > #purchase-button',
-            '#below ytd-menu-popup-renderer ytd-menu-service-item-download-renderer'
+            'ytd-menu-service-item-download-renderer'
         ]
     },
     {
@@ -262,8 +265,7 @@ globalThis.YT_DCLTR_FEATURES = [
         selectors: [
             'ytd-search ytd-shelf-renderer[thumbnail-style]:has(ytd-movie-renderer, a[href*="/movies"], a[href*="/store"], a[href*="/promo"])',
             'ytd-search ytd-horizontal-card-list-renderer',
-            'ytd-search ytd-movie-renderer',
-            'ytd-search ytd-secondary-search-container-renderer'
+            'ytd-search ytd-movie-renderer'
         ]
     },
     {
