@@ -1,0 +1,10 @@
+{
+  "name": "youtube-declutter-dev",
+  "private": true,
+  "version": "10.4.0",
+  "description": "Dev-only tooling for the YouTube Declutter extension (tests + packaging). Never shipped in the extension.",
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\"",
+    "package": "node scripts/package.js"
+  }
+}

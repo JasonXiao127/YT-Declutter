@@ -1,0 +1,4 @@
+tests/ export-ignore
+scripts/ export-ignore
+package.json export-ignore
+dist/ export-ignore
