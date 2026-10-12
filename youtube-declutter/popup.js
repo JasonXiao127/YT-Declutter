@@ -2,8 +2,34 @@
     'use strict';
 
     const STORAGE_KEY = 'states';
+    const QUALITY_KEY = 'default_quality';
     const COLLAPSE_KEY = 'yt-dcltr-collapsed';
-    const GROUP_ORDER = ['Shorts', 'Home / Feed', 'Top Bar', 'Watch Page', 'Search & Channel'];
+    const GROUP_ORDER = ['Playback', 'Shorts', 'Home / Feed', 'Top Bar', 'Watch Page', 'Search & Channel'];
+    const QCORE = (typeof globalThis.YT_DCLTR_QUALITY_CORE === 'object' && globalThis.YT_DCLTR_QUALITY_CORE)
+        ? globalThis.YT_DCLTR_QUALITY_CORE
+        : null;
+    const QUALITY_DEFAULT = (QCORE && typeof QCORE.QUALITY_DEFAULT === 'string')
+        ? QCORE.QUALITY_DEFAULT
+        : ((typeof globalThis.YT_DCLTR_QUALITY_DEFAULT === 'string')
+            ? globalThis.YT_DCLTR_QUALITY_DEFAULT
+            : 'hd1080');
+    const QUALITY_OPTIONS = (QCORE && Array.isArray(QCORE.QUALITY_OPTIONS))
+        ? QCORE.QUALITY_OPTIONS
+        : (Array.isArray(globalThis.YT_DCLTR_QUALITY_OPTIONS)
+            ? globalThis.YT_DCLTR_QUALITY_OPTIONS
+            : [
+                { value: 'tiny', label: '144p' },
+                { value: 'small', label: '240p' },
+                { value: 'medium', label: '360p' },
+                { value: 'large', label: '480p' },
+                { value: 'hd720', label: '720p' },
+                { value: 'hd1080', label: '1080p' },
+                { value: 'hd1440', label: '1440p' },
+                { value: 'hd2160', label: '2160p (4K)' },
+                { value: 'hd4320', label: '4320p (8K)' },
+                { value: 'highest', label: 'Highest available' }
+            ]);
+    const QUALITY_VALUES = QUALITY_OPTIONS.map((o) => o.value);
     const FEATURES = Array.isArray(globalThis.YT_DCLTR_FEATURES) ? globalThis.YT_DCLTR_FEATURES : [];
     const DEFAULTS = (globalThis.YT_DCLTR_DEFAULTS && typeof globalThis.YT_DCLTR_DEFAULTS === 'object')
         ? globalThis.YT_DCLTR_DEFAULTS
@@ -31,6 +57,8 @@
     }
 
     let states = { ...DEFAULTS };
+    let preferredQuality = QUALITY_DEFAULT;
+    let pendingQuality = null;
     let loaded = false;
     let revealed = false;
     let suppressToggleSave = false;
@@ -60,6 +88,17 @@
         } catch (err) { /* ignore */ }
     }
 
+    function sanitizeQuality(value) {
+        if (QCORE && typeof QCORE.sanitizeQuality === 'function') {
+            try {
+                return QCORE.sanitizeQuality(value);
+            } catch (err) { /* fall through to local check */ }
+        }
+        return (typeof value === 'string' && QUALITY_VALUES.indexOf(value) !== -1)
+            ? value
+            : QUALITY_DEFAULT;
+    }
+
     function reveal() {
         if (revealed) return;
         revealed = true;
@@ -69,8 +108,14 @@
     function setUiEnabled(enabled) {
         if (listEl) {
             listEl.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+                if (input.id === 'toggle-quality_premium' && states.quality_enabled === false) {
+                    input.disabled = true;
+                    return;
+                }
                 input.disabled = !enabled;
             });
+            const select = document.getElementById('quality-select');
+            if (select) select.disabled = !enabled || !states.quality_enabled;
             listEl.querySelectorAll('.group-actions .link-button').forEach((btn) => {
                 btn.disabled = !enabled;
             });
@@ -78,6 +123,7 @@
         if (resetButton) resetButton.disabled = !enabled;
         if (enableAllButton) enableAllButton.disabled = !enabled;
         if (disableAllButton) disableAllButton.disabled = !enabled;
+        syncQualityUi();
     }
 
     function persist() {
@@ -87,6 +133,37 @@
         if (!api) return;
         try {
             const result = api.storage.local.set({ [STORAGE_KEY]: { ...states } });
+            if (result && typeof result.catch === 'function') {
+                result.catch((err) => { flagPersistError(); });
+            }
+        } catch (err) {
+            flagPersistError();
+        }
+    }
+
+    function persistQuality() {
+        if (!loaded) return;
+        const api = getApi();
+        if (!api) return;
+        try {
+            const result = api.storage.local.set({ [QUALITY_KEY]: preferredQuality });
+            if (result && typeof result.catch === 'function') {
+                result.catch((err) => { flagPersistError(); });
+            }
+        } catch (err) {
+            flagPersistError();
+        }
+    }
+
+    function persistAll() {
+        if (!loaded) return;
+        const api = getApi();
+        if (!api) return;
+        try {
+            const result = api.storage.local.set({
+                [STORAGE_KEY]: { ...states },
+                [QUALITY_KEY]: preferredQuality
+            });
             if (result && typeof result.catch === 'function') {
                 result.catch((err) => { flagPersistError(); });
             }
@@ -155,15 +232,31 @@
         FEATURES.filter((f) => f.parent).forEach((child) => {
             const input = document.getElementById(`toggle-${child.key}`);
             if (!input) return;
-            input.disabled = !loaded;
+            const parentOff = child.parent && !states[child.parent];
+            input.disabled = !loaded || !!parentOff;
             const row = input.closest('.toggle-row');
-            if (row) row.classList.toggle('child-disabled', false);
+            if (row) row.classList.toggle('child-disabled', !!parentOff);
         });
+    }
+
+    function syncQualityUi() {
+        const select = document.getElementById('quality-select');
+        if (select) {
+            if (select.value !== preferredQuality) select.value = preferredQuality;
+            select.disabled = !loaded || !states.quality_enabled;
+            const row = select.closest('.toggle-row');
+            if (row) row.classList.toggle('child-disabled', !states.quality_enabled);
+        }
+        const premiumInput = document.getElementById('toggle-quality_premium');
+        if (premiumInput) {
+            premiumInput.disabled = !loaded || !states.quality_enabled;
+        }
     }
 
     function refreshAll() {
         for (const feature of FEATURES) refreshCheckbox(feature);
         syncChildToggles();
+        syncQualityUi();
         updateCounts();
     }
 
@@ -177,13 +270,22 @@
         }
     }
 
+    function applyQualityStored(value) {
+        if (pendingQuality !== null) return; // pre-load user choice wins
+        if (typeof value === 'string') preferredQuality = sanitizeQuality(value);
+    }
+
     function finishLoad() {
         loaded = true;
         pendingUserChanges.clear();
+        const hadPendingQuality = pendingQuality !== null;
+        if (hadPendingQuality) preferredQuality = pendingQuality;
+        pendingQuality = null;
         refreshAll();
         setUiEnabled(true);
         applySearchFilter();
         reveal();
+        return hadPendingQuality;
     }
 
     function groupsInOrder() {
@@ -396,10 +498,72 @@
                 details.appendChild(row);
             }
 
+            if (group === 'Playback') injectQualityRow(details);
+
             listEl.appendChild(details);
         }
         updateCounts();
         syncChildToggles();
+        syncQualityUi();
+    }
+
+    function injectQualityRow(details) {
+        try {
+            if (!details || details.querySelector('[data-key="default_quality"]')) return;
+            const row = document.createElement('div');
+            row.className = 'toggle-row';
+            row.dataset.key = 'default_quality';
+            row.dataset.search = [
+                'default quality',
+                'preferred resolution',
+                'playback quality resolution 144p 240p 360p 480p 720p 1080p 1440p 2160p 4k 4320p 8k highest available premium enhanced bitrate',
+                'playback'
+            ].join(' ').toLowerCase();
+
+            const textWrap = document.createElement('div');
+            textWrap.className = 'toggle-text';
+            const label = document.createElement('label');
+            label.className = 'toggle-label';
+            label.textContent = 'Preferred resolution';
+            label.htmlFor = 'quality-select';
+            const desc = document.createElement('span');
+            desc.className = 'toggle-desc';
+            desc.textContent = 'Videos start here when available, otherwise the closest lower resolution. 1080p by default.';
+            desc.id = 'desc-default_quality';
+            textWrap.appendChild(label);
+            textWrap.appendChild(desc);
+
+            const select = document.createElement('select');
+            select.id = 'quality-select';
+            select.className = 'quality-select';
+            select.setAttribute('aria-describedby', 'desc-default_quality');
+            for (const opt of QUALITY_OPTIONS) {
+                const el = document.createElement('option');
+                el.value = opt.value;
+                el.textContent = opt.label;
+                select.appendChild(el);
+            }
+            select.value = preferredQuality;
+            select.disabled = !loaded || !states.quality_enabled;
+            select.addEventListener('change', () => {
+                const next = sanitizeQuality(select.value);
+                select.value = next;
+                preferredQuality = next;
+                if (!loaded) {
+                    pendingQuality = next;
+                    return;
+                }
+                persistQuality();
+            });
+
+            row.append(textWrap, select);
+            const masterRow = details.querySelector('[data-key="quality_enabled"]');
+            if (masterRow && masterRow.nextSibling) {
+                details.insertBefore(row, masterRow.nextSibling);
+            } else {
+                details.appendChild(row);
+            }
+        } catch (err) { /* ignore */ }
     }
 
     function currentQuery() {
@@ -462,13 +626,15 @@
             if (callbackFired) return;
             callbackFired = true;
             if (data && data[STORAGE_KEY]) applyStored(data[STORAGE_KEY]);
+            if (data) applyQualityStored(data[QUALITY_KEY]);
             const hadPending = pendingUserChanges.size > 0;
-            finishLoad();
+            const hadPendingQuality = finishLoad();
             // If the user toggled while loading, their choice wins and is now saved.
             if (hadPending) persist();
+            if (hadPendingQuality) persistQuality();
         };
         try {
-            const result = api.storage.local.get(STORAGE_KEY, (data) => {
+            const result = api.storage.local.get([STORAGE_KEY, QUALITY_KEY], (data) => {
                 try {
                     if (api.runtime && api.runtime.lastError) {
                         if (!callbackFired) {
@@ -497,8 +663,9 @@
             if (!callbackFired) {
                 callbackFired = true;
                 const hadPending = pendingUserChanges.size > 0;
-                finishLoad();
+                const hadPendingQuality = finishLoad();
                 if (hadPending) persist();
+                if (hadPendingQuality) persistQuality();
             }
         }, 2000);
     }
@@ -506,6 +673,7 @@
     function loadFailed() {
         loaded = true;
         pendingUserChanges.clear();
+        pendingQuality = null;
         refreshAll();
         setUiEnabled(true);
         applySearchFilter();
@@ -517,7 +685,9 @@
             const api = getApi();
             if (api && api.storage && api.storage.onChanged) {
                 api.storage.onChanged.addListener((changes, namespace) => {
-                    if (namespace === 'local' && changes[STORAGE_KEY]) {
+                    if (namespace !== 'local') return;
+                    let touched = false;
+                    if (changes[STORAGE_KEY]) {
                         if (changes[STORAGE_KEY].newValue) {
                             applyStored(changes[STORAGE_KEY].newValue);
                         } else {
@@ -525,10 +695,23 @@
                             states = { ...DEFAULTS };
                             pendingUserChanges.clear();
                         }
-                        if (loaded) {
-                            refreshAll();
-                            applySearchFilter();
+                        touched = true;
+                    }
+                    if (changes[QUALITY_KEY]) {
+                        if (changes[QUALITY_KEY].newValue === undefined) {
+                            preferredQuality = QUALITY_DEFAULT;
+                            pendingQuality = null;
+                        } else {
+                            applyQualityStored(changes[QUALITY_KEY].newValue);
+                            if (loaded && pendingQuality === null) {
+                                preferredQuality = sanitizeQuality(changes[QUALITY_KEY].newValue);
+                            }
                         }
+                        touched = true;
+                    }
+                    if (touched && loaded) {
+                        refreshAll();
+                        applySearchFilter();
                     }
                 });
             }
@@ -561,8 +744,10 @@
             }
             disarmReset();
             states = { ...DEFAULTS };
+            preferredQuality = QUALITY_DEFAULT;
             pendingUserChanges.clear();
-            persist();
+            pendingQuality = null;
+            persistAll();
             refreshAll();
             applySearchFilter();
         });

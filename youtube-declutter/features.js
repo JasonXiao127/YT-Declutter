@@ -4,6 +4,25 @@
 // label-based selectors, not a bug in the hiding logic.
 globalThis.YT_DCLTR_FEATURES = [
     {
+        key: 'quality_enabled',
+        label: 'Auto-set video quality',
+        description: 'Set every video to your preferred resolution once on load. Manual changes afterwards are always respected.',
+        keywords: 'quality resolution playback 1080p 720p 4k hd auto',
+        group: 'Playback',
+        behavior: 'quality',
+        defaultEnabled: true
+    },
+    {
+        key: 'quality_premium',
+        label: 'Prefer enhanced bitrate (Premium)',
+        description: 'When available, pick 1080p Premium / enhanced bitrate instead of standard. Requires YouTube Premium.',
+        keywords: 'premium enhanced bitrate 1080p quality playback',
+        group: 'Playback',
+        behavior: 'qualityPremium',
+        defaultEnabled: false,
+        parent: 'quality_enabled'
+    },
+    {
         key: 'shorts',
         label: 'Shorts',
         description: 'Shorts shelves, tabs, and Shorts videos in feed and sidebar.',
@@ -290,3 +309,30 @@ globalThis.YT_DCLTR_DEFAULTS = Object.fromEntries(
         feature.behavior ? !!feature.defaultEnabled : feature.defaultHidden !== false
     ])
 );
+
+globalThis.YT_DCLTR_QUALITY_DEFAULT = 'hd1080';
+globalThis.YT_DCLTR_QUALITY_OPTIONS = [
+    { value: 'tiny', label: '144p' },
+    { value: 'small', label: '240p' },
+    { value: 'medium', label: '360p' },
+    { value: 'large', label: '480p' },
+    { value: 'hd720', label: '720p' },
+    { value: 'hd1080', label: '1080p' },
+    { value: 'hd1440', label: '1440p' },
+    { value: 'hd2160', label: '2160p (4K)' },
+    { value: 'hd4320', label: '4320p (8K)' },
+    { value: 'highest', label: 'Highest available' }
+];
+globalThis.YT_DCLTR_QUALITY_VALUES = globalThis.YT_DCLTR_QUALITY_OPTIONS.map(o => o.value);
+
+// Canonical source is quality-core.js (loaded before this file). Adopt it
+// when present so display metadata and logic can never drift; otherwise the
+// literals above stand alone (e.g. features.js loaded without the core).
+try {
+    var __core = globalThis.YT_DCLTR_QUALITY_CORE;
+    if (__core && typeof __core === 'object') {
+        if (typeof __core.QUALITY_DEFAULT === 'string') globalThis.YT_DCLTR_QUALITY_DEFAULT = __core.QUALITY_DEFAULT;
+        if (Array.isArray(__core.QUALITY_OPTIONS)) globalThis.YT_DCLTR_QUALITY_OPTIONS = __core.QUALITY_OPTIONS;
+        if (Array.isArray(__core.QUALITY_VALUES)) globalThis.YT_DCLTR_QUALITY_VALUES = __core.QUALITY_VALUES;
+    }
+} catch (err) { /* ignore */ }

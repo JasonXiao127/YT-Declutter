@@ -3,6 +3,20 @@
 
     const STYLE_ID = 'dcltr-style';
     const STORAGE_KEY = 'states';
+    const QUALITY_KEY = 'default_quality';
+    const QCORE = (typeof globalThis.YT_DCLTR_QUALITY_CORE === 'object' && globalThis.YT_DCLTR_QUALITY_CORE)
+        ? globalThis.YT_DCLTR_QUALITY_CORE
+        : null;
+    const QUALITY_DEFAULT = (QCORE && typeof QCORE.QUALITY_DEFAULT === 'string')
+        ? QCORE.QUALITY_DEFAULT
+        : ((typeof globalThis.YT_DCLTR_QUALITY_DEFAULT === 'string')
+            ? globalThis.YT_DCLTR_QUALITY_DEFAULT
+            : 'hd1080');
+    const QUALITY_VALUES = (QCORE && Array.isArray(QCORE.QUALITY_VALUES))
+        ? QCORE.QUALITY_VALUES
+        : (Array.isArray(globalThis.YT_DCLTR_QUALITY_VALUES)
+            ? globalThis.YT_DCLTR_QUALITY_VALUES
+            : ['tiny', 'small', 'medium', 'large', 'hd720', 'hd1080', 'hd1440', 'hd2160', 'hd4320', 'highest']);
     const NAV_EVENTS = ['yt-navigate-finish', 'yt-page-data-updated'];
     const FEATURES = Array.isArray(globalThis.YT_DCLTR_FEATURES) ? globalThis.YT_DCLTR_FEATURES : [];
     const DEFAULTS = (globalThis.YT_DCLTR_DEFAULTS && typeof globalThis.YT_DCLTR_DEFAULTS === 'object')
@@ -70,6 +84,39 @@
     }
 
     let cachedStates = { ...DEFAULTS };
+    let cachedQuality = QUALITY_DEFAULT;
+
+    function sanitizeQuality(value) {
+        if (QCORE && typeof QCORE.sanitizeQuality === 'function') {
+            try {
+                return QCORE.sanitizeQuality(value);
+            } catch (err) { /* fall through to local check */ }
+        }
+        return (typeof value === 'string' && QUALITY_VALUES.indexOf(value) !== -1)
+            ? value
+            : QUALITY_DEFAULT;
+    }
+
+    function postQualitySettings() {
+        try {
+            window.postMessage({
+                __dcltr: true,
+                type: 'DCLTR_SETTINGS',
+                enabled: !!cachedStates['quality_enabled'],
+                quality: cachedQuality,
+                premium: !!cachedStates['quality_premium']
+            }, '*');
+        } catch (err) { /* ignore */ }
+    }
+
+    window.addEventListener('message', (event) => {
+        try {
+            if (event.source !== window) return;
+            const data = event.data;
+            if (!data || data.__dcltr !== true) return;
+            if (data.type === 'DCLTR_SETTINGS_REQUEST') postQualitySettings();
+        } catch (err) { /* ignore */ }
+    });
 
     function applyHiding(states) {
         try {
@@ -458,8 +505,10 @@
             settled = true;
             clearSafetyTimer();
             cachedStates = sanitize(data && data[STORAGE_KEY]);
+            cachedQuality = sanitizeQuality(data && data[QUALITY_KEY]);
             applyHiding(cachedStates);
             syncShortsBehavior();
+            postQualitySettings();
         };
         const applyCurrent = () => {
             if (settled) return;
@@ -467,9 +516,10 @@
             clearSafetyTimer();
             applyHiding(cachedStates);
             syncShortsBehavior();
+            postQualitySettings();
         };
         try {
-            const result = storageArea.get(STORAGE_KEY, (data) => {
+            const result = storageArea.get([STORAGE_KEY, QUALITY_KEY], (data) => {
                 try {
                     const api = getExtensionApi();
                     if (api && api.runtime && api.runtime.lastError) {
@@ -487,19 +537,33 @@
             safetyTimer = setTimeout(() => { applyCurrent(); }, 2000);
         } catch (err) {
             cachedStates = { ...DEFAULTS };
+            cachedQuality = QUALITY_DEFAULT;
             applyHiding(cachedStates);
             syncShortsBehavior();
+            postQualitySettings();
         }
 
         try {
             const api = getExtensionApi();
             if (api && api.storage && api.storage.onChanged) {
                 api.storage.onChanged.addListener((changes, namespace) => {
-                    if (namespace === 'local' && changes[STORAGE_KEY]) {
+                    if (namespace !== 'local') return;
+                    let qualityChanged = false;
+                    if (changes[STORAGE_KEY]) {
                         cachedStates = sanitize(changes[STORAGE_KEY].newValue);
                         applyHiding(cachedStates);
                         syncShortsBehavior();
+                        qualityChanged = true;
                     }
+                    if (changes[QUALITY_KEY]) {
+                        cachedQuality = sanitizeQuality(
+                            changes[QUALITY_KEY].newValue === undefined
+                                ? undefined
+                                : changes[QUALITY_KEY].newValue
+                        );
+                        qualityChanged = true;
+                    }
+                    if (qualityChanged) postQualitySettings();
                 });
             }
         } catch (err) {
