@@ -6,15 +6,25 @@ Hide parts of YouTube you do not want. Pick what to hide. Changes apply at once.
 
 ## Features
 
+**Playback**
+
+- **Auto-set video quality**: Sets every video to your preferred resolution once on load (default 1080p). Manual changes afterwards are always respected.
+- **Prefer enhanced bitrate (Premium)**: Picks 1080p Premium / enhanced bitrate when available. Requires YouTube Premium. Off by default.
+
+**Shorts**
+
+- **Shorts**: Removes Shorts shelves, tabs, and Shorts videos in feed and sidebar.
+- **Open Shorts as regular videos**: Rewrites Shorts links so they open as normal watch pages. Off by default. Works best with Shorts hiding off — when both are on, rewritten links reappear as watch videos.
+
 **Feed & Sidebar**
 
-- **Shorts**: Removes Shorts from the feed, sidebar, search results, channel tabs, and remixes in descriptions.
+- **Shorts**: Removes Shorts from the feed, sidebar, search results, and channel tabs.
 - **Comments**: Hides comments under videos and the comments panel on Shorts.
 - **Ads, Playables & Nag Toasts**: Hides masthead ads, ad slots, the Playables shelf, and the ad blocker toast.
 - **Category Chips**: Hides the filter chips row (All, Gaming, Music, and the rest).
 - **Top News Section**: Hides the Top news and Breaking news sections on the homepage.
 - **Feedback Surveys**: Hides feedback surveys on recommendations.
-- **Sidebar Sections**: Hides the Explore and More from YouTube sections.
+- **Sidebar Sections**: Hides Explore, Trending, Shopping, Premium, Storefront, and More from YouTube sidebar sections.
 - **Join Buttons**: Hides channel Join buttons.
 
 **Top Bar**
@@ -39,7 +49,7 @@ Hide parts of YouTube you do not want. Pick what to hide. Changes apply at once.
 - **Search Fluff**: Hides extra shelves, movie rows, and promo panels in search results.
 - **Channel Extras**: Hides channel banners, header links, and member shoutout shelves.
 
-Reset to Defaults turns everything back to the standard setup.
+Reset to Defaults restores the extension defaults (most hiding on, Logo and Info Panels off, quality 1080p).
 
 ## Installation
 
@@ -55,13 +65,15 @@ Reset to Defaults turns everything back to the standard setup.
 
 ## Notes
 
-- Works on `*.youtube.com`, including `m.youtube.com`. Skips `music.youtube.com`. Needs Chrome 105 or newer.
-- All selectors live in `youtube-declutter/features.js`. The popup and hiding CSS come from that one file.
-- Some features match English labels (Top news, Thanks). They may not match on localized YouTube.
+- Works on desktop `youtube.com` / `*.youtube.com`. Skips `music.youtube.com`. Needs Chrome 111 or newer.
+- Hiding selectors live in `youtube-declutter/features.js`. Player controls (quality menu) are matched in `quality-main.js`; Shorts link rewriting queries live in `content.js`. The popup and hiding CSS are generated from `features.js`.
+- Some features match English labels (Top News, Thanks, Clip, Shorts tab). They silently do nothing on localized YouTube.
 - Hiding Shorts blanks a Shorts page you open direct. The player itself is hidden.
 - Settings stay in `chrome.storage.local` on your device. No network calls. No analytics.
 
 ## Changelog
 
+- `10.4.0`: Auto-set video quality (default 1080p) with Premium enhanced-bitrate option. Dev-only regression suite (50 tests) + dist packager. Fixed settings-bridge race (no enforce from pre-storage defaults), settings-menu close logic, mid-roll ad re-enforcement, ad-budget reset, storage-error pending saves, tokenized popup search, switch contrast, bare-domain matches, `all_frames` symmetry. Removed overbroad badge selector.
+- `10.3`: Fixed reliability, selector precision, and popup accessibility. Popup UI overhaul: grouped collapsible toggles, search, descriptions, order-independent enable-all.
 - `10.2`: Fixed broken toggles and hiding. `features.js` now assigns to `globalThis` so popup and content script can read definitions.
 - `10.1`: Fixed the first paint flash. Fixed the popup storage race. Added popup scrolling. Scoped Shorts and notification selectors. Moved the Clarify Box to its own Info Panels toggle. Added icons. Broadened matches to `*.youtube.com` except Music.

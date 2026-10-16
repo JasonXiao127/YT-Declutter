@@ -173,18 +173,20 @@
     }
 
     function flagPersistError() {
-        // Transient user signal: in-memory state diverged from disk.
+        // Visible user signal: in-memory state diverged from disk.
         try {
             if (resetButton) {
-                const prev = resetButton.textContent;
                 resetButton.title = 'Save failed — changes kept for this session only';
                 resetButton.dataset.persistError = '1';
+                if (!resetArmed) {
+                    resetButton.textContent = 'Save failed — retry?';
+                }
                 setTimeout(() => {
                     try {
                         if (resetButton.dataset.persistError) {
                             delete resetButton.dataset.persistError;
                             resetButton.title = '';
-                            if (resetButton.textContent !== prev && !resetArmed) {
+                            if (!resetArmed) {
                                 resetButton.textContent = 'Reset to Defaults';
                             }
                         }
@@ -570,6 +572,17 @@
         return searchInput ? searchInput.value.trim().toLowerCase() : '';
     }
 
+    function matchesQuery(searchText, query) {
+        if (!query) return true;
+        const hay = searchText || '';
+        // Tokenized AND-match so "hide comments" finds "comments".
+        const tokens = query.split(/\s+/).filter(Boolean);
+        for (const tok of tokens) {
+            if (!hay.includes(tok)) return false;
+        }
+        return true;
+    }
+
     function applySearchFilter() {
         const query = currentQuery();
         if (searchClear) searchClear.hidden = !query;
@@ -592,7 +605,7 @@
                 listEl.querySelectorAll('details.group').forEach((details) => {
                     let groupVisible = 0;
                     details.querySelectorAll('.toggle-row').forEach((row) => {
-                        const match = !query || (row.dataset.search || '').includes(query);
+                        const match = matchesQuery(row.dataset.search || '', query);
                         row.style.display = match ? '' : 'none';
                         if (match) {
                             groupVisible += 1;
@@ -639,7 +652,10 @@
                     if (api.runtime && api.runtime.lastError) {
                         if (!callbackFired) {
                             callbackFired = true;
-                            finishLoad();
+                            const hadPending = pendingUserChanges.size > 0;
+                            const hadPendingQuality = finishLoad();
+                            if (hadPending) persist();
+                            if (hadPendingQuality) persistQuality();
                         }
                         return;
                     }
@@ -650,7 +666,10 @@
                 result.then(onData, () => {
                     if (!callbackFired) {
                         callbackFired = true;
-                        finishLoad();
+                        const hadPending = pendingUserChanges.size > 0;
+                        const hadPendingQuality = finishLoad();
+                        if (hadPending) persist();
+                        if (hadPendingQuality) persistQuality();
                     }
                 });
             }

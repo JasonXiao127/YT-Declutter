@@ -239,8 +239,7 @@ globalThis.YT_DCLTR_FEATURES = [
         selectors: [
             'ytd-merch-shelf-renderer',
             'ytd-structured-description-content-renderer #merch-shelf',
-            '#secondary #donation-shelf',
-            '#below ytd-badge-supported-renderer'
+            '#secondary #donation-shelf'
         ]
     },
     {

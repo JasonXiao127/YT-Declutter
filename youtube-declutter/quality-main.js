@@ -221,8 +221,40 @@
         return null;
     }
 
+    function isPremiumCandidate(level) {
+        if (QCORE && typeof QCORE.isPremiumCandidate === 'function') {
+            try {
+                return QCORE.isPremiumCandidate(level);
+            } catch (err) { /* fall through */ }
+        }
+        return (HEIGHT[normalizeLevel(level)] || 0) >= 1080;
+    }
+
     function sleep(ms) {
         return new Promise(function (resolve) { setTimeout(resolve, ms); });
+    }
+
+    function isMenuOpen() {
+        try {
+            var menu = document.querySelector('.ytp-settings-menu');
+            if (!menu) return false;
+            // .ytp-settings-menu persists in DOM hidden via display:none;
+            // existence alone cannot signal open state.
+            var style = window.getComputedStyle ? window.getComputedStyle(menu) : null;
+            if (style && style.display === 'none') return false;
+            if (style && style.visibility === 'hidden') return false;
+            if (menu.offsetParent === null && style && style.position !== 'fixed') return false;
+            var btn = document.querySelector('.ytp-settings-button');
+            if (btn && btn.getAttribute && btn.getAttribute('aria-expanded') === 'false') return false;
+            // Fallback: closed menus have zero rect.
+            try {
+                var rect = menu.getBoundingClientRect();
+                if (rect && rect.width === 0 && rect.height === 0) return false;
+            } catch (err) { /* ignore */ }
+            return true;
+        } catch (err) {
+            return false;
+        }
     }
 
     function clickMenuItemByText(root, text, exact) {
@@ -265,7 +297,7 @@
                     try { btn.click(); } catch (e) { /* ignore */ }
                     return sleep(120).then(function () {
                         try {
-                            if (document.querySelector('.ytp-settings-menu')) {
+                            if (isMenuOpen()) {
                                 try { btn.click(); } catch (e2) { /* ignore */ }
                             }
                         } catch (err) { /* ignore */ }
@@ -291,7 +323,7 @@
                     return sleep(120).then(function () {
                         // Close any leftover menu.
                         try {
-                            if (document.querySelector('.ytp-settings-menu')) btn.click();
+                            if (isMenuOpen()) btn.click();
                         } catch (err) { /* ignore */ }
                         return picked;
                     });
@@ -347,7 +379,7 @@
         // Premium path: menu click, attempted at most once per video.
         // While a menu attempt is in flight, keep waiting so the poll loop
         // doesn't race it with an immediate API fallback.
-        if (cached.premium && (HEIGHT[normalizeLevel(resolved)] || 0) >= 1080) {
+        if (cached.premium && isPremiumCandidate(resolved)) {
             if (premiumPendingGen === gen) return 'wait';
             if (premiumAttemptedGen !== gen) {
                 var premiumLabel = findPremiumLabel(qualityData, resolved);
@@ -428,6 +460,9 @@
             adTicks++;
             if (adTicks >= MAX_AD_TICKS) stopPoll();
         } else {
+            // Progress (player ready, levels visible): fresh ad budget for
+            // the next ad unit so stacked/long ads each get a full window.
+            adTicks = 0;
             ticks++;
             if (ticks >= MAX_TICKS) {
                 stopPoll();
@@ -490,6 +525,13 @@
             var data = event.data;
             if (!data || data.__dcltr !== true) return;
             if (data.type !== 'DCLTR_SETTINGS') return;
+            // Pre-storage defaults carry ready:false: keep polling and do
+            // not latch them, or a slow storage read enforces the wrong
+            // quality for this video.
+            if (data.ready === false) {
+                cached.known = false;
+                return;
+            }
             cached.enabled = data.enabled !== false;
             cached.quality = sanitizeQuality(data.quality);
             cached.premium = data.premium === true;
@@ -518,7 +560,10 @@
     });
     try {
         window.addEventListener('popstate', function () {
-            setTimeout(function () { onNewNavigation(true); }, 0);
+            // Same-video timestamp Back (e.g. ?t=30) must not re-enforce
+            // over a manual quality change; real reloads are caught by
+            // loadstart / yt-navigate events which bump the generation.
+            setTimeout(function () { onNewNavigation(false); }, 0);
         });
     } catch (err) { /* ignore */ }
     // New stream metadata (covers autoplay next without nav events firing first).
@@ -527,6 +572,12 @@
             var t = e && e.target;
             if (t && t.tagName === 'VIDEO' && isWatchOrEmbed()) {
                 var player = getPlayer();
+                // Mid-roll ads fire loadstart with the ad's video id: never
+                // bump gen / lastVideoId for ads or they reopen an
+                // enforcement window that clobbers manual quality changes.
+                try {
+                    if (player && isAd(player)) return;
+                } catch (err) { /* fall through to id check */ }
                 var id = getVideoId(player);
                 if (id && id !== lastVideoId) onNewNavigation(false);
                 else startWindow();

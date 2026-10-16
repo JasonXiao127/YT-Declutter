@@ -85,6 +85,9 @@
 
     let cachedStates = { ...DEFAULTS };
     let cachedQuality = QUALITY_DEFAULT;
+    // Becomes true once real storage data (or an explicit fallback) has
+    // been applied. MAIN-world must not enforce from pre-storage defaults.
+    let settingsReady = false;
 
     function sanitizeQuality(value) {
         if (QCORE && typeof QCORE.sanitizeQuality === 'function') {
@@ -104,7 +107,8 @@
                 type: 'DCLTR_SETTINGS',
                 enabled: !!cachedStates['quality_enabled'],
                 quality: cachedQuality,
-                premium: !!cachedStates['quality_premium']
+                premium: !!cachedStates['quality_premium'],
+                ready: settingsReady
             }, '*');
         } catch (err) { /* ignore */ }
     }
@@ -314,8 +318,10 @@
             fullRescanNeeded = false;
             return;
         }
-        const batch = pendingRewriteNodes;
-        pendingRewriteNodes = [];
+        // Bounded work: process at most 500 nodes per flush, re-queue the
+        // remainder instead of falling back to a full-document scan.
+        const batch = pendingRewriteNodes.slice(0, 500);
+        pendingRewriteNodes = pendingRewriteNodes.slice(500);
         const needsFullRescan = fullRescanNeeded;
         fullRescanNeeded = false;
         try {
@@ -329,6 +335,17 @@
             }
             if (needsFullRescan) scanAndRewrite(document);
         } catch (err) { /* ignore */ }
+        if (pendingRewriteNodes.length > 0) {
+            // More work remains: schedule a follow-up flush.
+            if (!rewriteScheduled) {
+                rewriteScheduled = true;
+                try {
+                    setTimeout(flushPendingRewrites, 0);
+                } catch (err) {
+                    try { setTimeout(flushPendingRewrites, 0); } catch (ignored) { /* ignore */ }
+                }
+            }
+        }
         if (location.href !== lastCheckedUrl) checkUrlChange();
     }
 
@@ -336,9 +353,9 @@
         for (const n of nodes) {
             if (n && n.nodeType === 1) pendingRewriteNodes.push(n);
         }
-        // Cap batch to avoid unbounded growth on huge SPA renders.
-        // Instead of silently dropping, fall back to a full rescan.
-        if (pendingRewriteNodes.length > 500) {
+        // Hard cap to avoid unbounded growth; excess beyond 2000 falls
+        // back to a single full rescan (rare, huge SPA renders only).
+        if (pendingRewriteNodes.length > 2000) {
             pendingRewriteNodes = [];
             fullRescanNeeded = true;
         }
@@ -442,44 +459,15 @@
     // YouTube SPA events fire on `document`; `popstate` fires on `window`.
     // yt-navigate-start fires before the URL commits, so only listen to
     // finish/update events to avoid redirecting on a stale URL.
+    // Note: no history.pushState patch — MV3 isolated worlds cannot
+    // intercept page-context pushState/replaceState calls; yt-navigate-*
+    // events carry the real SPA detection.
     for (const eventName of NAV_EVENTS) {
         document.addEventListener(eventName, handleNavEvent);
     }
     try {
         window.addEventListener('popstate', handleNavEvent);
     } catch (err) { /* window unavailable */ }
-
-    try {
-        // Patch each method independently: another script may have wrapped
-        // only one of them. (In isolated worlds this is only a fallback;
-        // yt-navigate-* events carry the real SPA detection.)
-        if (history.pushState && !history.pushState.__dcltrPatched) {
-            const originalPushState = history.pushState;
-            const patchedPush = function (...args) {
-                const result = originalPushState.apply(this, args);
-                setTimeout(checkUrlChange, 0);
-                return result;
-            };
-            patchedPush.__dcltrPatched = true;
-            try {
-                patchedPush.toString = originalPushState.toString.bind(originalPushState);
-            } catch (err) { /* toString preserve best-effort */ }
-            history.pushState = patchedPush;
-        }
-        if (history.replaceState && !history.replaceState.__dcltrPatched) {
-            const originalReplaceState = history.replaceState;
-            const patchedReplace = function (...args) {
-                const result = originalReplaceState.apply(this, args);
-                setTimeout(checkUrlChange, 0);
-                return result;
-            };
-            patchedReplace.__dcltrPatched = true;
-            try {
-                patchedReplace.toString = originalReplaceState.toString.bind(originalReplaceState);
-            } catch (err) { /* toString preserve best-effort */ }
-            history.replaceState = patchedReplace;
-        }
-    } catch (err) { /* history patch unavailable */ }
 
     // Apply defaults synchronously so first paint does not hide
     // opt-out features (e.g. logo) before storage loads.
@@ -506,6 +494,7 @@
             clearSafetyTimer();
             cachedStates = sanitize(data && data[STORAGE_KEY]);
             cachedQuality = sanitizeQuality(data && data[QUALITY_KEY]);
+            settingsReady = true;
             applyHiding(cachedStates);
             syncShortsBehavior();
             postQualitySettings();
@@ -514,6 +503,7 @@
             if (settled) return;
             settled = true;
             clearSafetyTimer();
+            settingsReady = true;
             applyHiding(cachedStates);
             syncShortsBehavior();
             postQualitySettings();
@@ -538,6 +528,7 @@
         } catch (err) {
             cachedStates = { ...DEFAULTS };
             cachedQuality = QUALITY_DEFAULT;
+            settingsReady = true;
             applyHiding(cachedStates);
             syncShortsBehavior();
             postQualitySettings();
@@ -569,5 +560,8 @@
         } catch (err) {
             /* storage events unavailable; defaults remain active */
         }
+    } else {
+        // No storage API (e.g. unexpected context): defaults are all we have.
+        settingsReady = true;
     }
 })();

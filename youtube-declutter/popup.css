@@ -13,7 +13,7 @@
     --divider: #e5e5e5;
     --accent: #065fd4;
     --accent-focus: rgba(6, 95, 212, 0.3);
-    --slider-off: #cccccc;
+    --slider-off: #8a8a8a;
     --knob: #ffffff;
     --input-bg: #f2f2f2;
     --badge-bg: #efefef;
@@ -28,7 +28,7 @@
         --divider: #303030;
         --accent: #3ea6ff;
         --accent-focus: rgba(62, 166, 255, 0.35);
-        --slider-off: #555555;
+        --slider-off: #7a7a7a;
         --knob: #ffffff;
         --input-bg: #272727;
         --badge-bg: #272727;

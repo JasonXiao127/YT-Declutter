@@ -19,10 +19,11 @@ describe('manifest', () => {
   it('declares isolated + MAIN entries with matching scope', () => {
     assert.equal(manifest.content_scripts.length, 2);
     const [isolated, main] = manifest.content_scripts;
-    assert.deepEqual(isolated.matches, ['*://*.youtube.com/*']);
-    assert.deepEqual(main.matches, ['*://*.youtube.com/*']);
+    assert.deepEqual(isolated.matches, ['*://youtube.com/*', '*://*.youtube.com/*']);
+    assert.deepEqual(main.matches, ['*://youtube.com/*', '*://*.youtube.com/*']);
     assert.equal(main.world, 'MAIN');
     assert.equal(main.all_frames, false);
+    assert.equal(isolated.all_frames, false);
   });
 
   it('pins scope, timing, and permissions on both entries', () => {
