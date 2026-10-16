@@ -137,6 +137,24 @@
                 } catch (err) { /* per-feature failure must not abort loop */ }
             }
         } catch (err) { /* document unavailable */ }
+        pauseHiddenShortsVideos(states);
+    }
+
+    // display:none does not pause media: a CSS-hidden Shorts player keeps
+    // playing audio with no visible controls. Pause videos inside hidden
+    // Shorts hosts so "Shorts hidden + direct /shorts/ visit" stays silent.
+    function pauseHiddenShortsVideos(states) {
+        try {
+            if (!states || !states['shorts']) return;
+            const vids = document.querySelectorAll
+                ? document.querySelectorAll('ytd-shorts video, ytd-reel-video-renderer video')
+                : [];
+            for (const v of vids) {
+                try {
+                    if (v && !v.paused && typeof v.pause === 'function') v.pause();
+                } catch (err) { /* per-video */ }
+            }
+        } catch (err) { /* ignore */ }
     }
 
     function sanitize(stored) {
@@ -284,16 +302,15 @@
     function onCaptureClick(event) {
         if (!isShortsBehaviorEnabled()) return;
         try {
-            if (event.defaultPrevented || event.button !== 0) return;
-            if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-            const target = event.target;
-            if (!target || !target.closest) return;
-            const anchor = target.closest('a[href*="/shorts/"]');
-            // Already rewritten to /watch: let normal navigation proceed.
-            // Only intercept un-rewritten Shorts links (race with observer).
-            if (!anchor) return;
-            if (anchor.hasAttribute(ORIGINAL_HREF_ATTR)) return;
-            const watch = toWatchHref(anchor.getAttribute('href'));
+            if (event.defaultPrevented) return;
+            // Modifier+left-click opens a new tab: rewrite in place and let
+            // it proceed so the new tab lands on /watch.
+            if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+                rewriteShortsLinkInPlace(event.target);
+                return;
+            }
+            if (event.button !== 0) return;
+            const watch = rewriteShortsLinkInPlace(event.target);
             if (!watch) return;
             event.preventDefault();
             event.stopPropagation();
@@ -301,6 +318,39 @@
             // while direct /shorts/ page loads use replace() to avoid
             // leaving the Shorts URL in history.
             location.href = watch;
+        } catch (err) { /* ignore */ }
+    }
+
+    // Shared by click (left) and auxclick (middle): rewrite the href in
+    // place so the navigation — same-tab or new-tab — lands on /watch.
+    // Returns the watch URL, or null when nothing was rewritten.
+    // Left-click still preventDefaults + navigates explicitly (history
+    // entry); auxclick must NOT preventDefault or the new tab never opens.
+    function rewriteShortsLinkInPlace(target) {
+        if (!target || !target.closest) return null;
+        const anchor = target.closest('a[href*="/shorts/"]');
+        // Already rewritten to /watch: let normal navigation proceed.
+        // Only intercept un-rewritten Shorts links (race with observer).
+        if (!anchor) return null;
+        if (anchor.hasAttribute(ORIGINAL_HREF_ATTR)) return null;
+        const href = anchor.getAttribute('href');
+        const watch = toWatchHref(href);
+        if (!watch) return null;
+        try {
+            anchor.setAttribute(ORIGINAL_HREF_ATTR, href);
+            anchor.setAttribute('href', watch);
+        } catch (err) { return null; }
+        return watch;
+    }
+
+    function onCaptureAuxClick(event) {
+        if (!isShortsBehaviorEnabled()) return;
+        try {
+            if (event.defaultPrevented) return;
+            // Middle-click (button 1) opens a new tab; Ctrl/Cmd+click also
+            // opens a new tab. Rewrite in place and let it proceed.
+            if (event.button !== 1) return;
+            rewriteShortsLinkInPlace(event.target);
         } catch (err) { /* ignore */ }
     }
 
@@ -334,6 +384,11 @@
                 }
             }
             if (needsFullRescan) scanAndRewrite(document);
+        } catch (err) { /* ignore */ }
+        // Newly added Shorts players arrive hidden (CSS) but keep playing
+        // audio: pause them whenever hiding is on.
+        try {
+            if (cachedStates['shorts']) pauseHiddenShortsVideos(cachedStates);
         } catch (err) { /* ignore */ }
         if (pendingRewriteNodes.length > 0) {
             // More work remains: schedule a follow-up flush.
@@ -387,6 +442,9 @@
             maybeRedirectFromShortsPage();
             scanAndRewrite(document);
         }
+        try {
+            if (cachedStates['shorts']) pauseHiddenShortsVideos(cachedStates);
+        } catch (err) { /* ignore */ }
     }
 
     function startShortsRedirect() {
@@ -418,7 +476,9 @@
                     }
                 }
                 if (hrefTargets) {
-                    for (const t of hrefTargets) rewriteAnchor(t);
+                    // Route through the chunked queue instead of synchronous
+                    // rewrites so bulk href-swaps stay bounded per task.
+                    scheduleRewrite(hrefTargets);
                 }
                 if (addedBatch) scheduleRewrite(addedBatch);
                 if ((!hrefTargets && !addedBatch) && location.href !== lastCheckedUrl) checkUrlChange();
@@ -455,6 +515,11 @@
     }
 
     document.addEventListener('click', onCaptureClick, true);
+    // Middle-click opens a new tab via auxclick (click never fires for
+    // button 1): rewrite in place and let the new tab proceed to /watch.
+    try {
+        document.addEventListener('auxclick', onCaptureAuxClick, true);
+    } catch (err) { /* auxclick unavailable */ }
 
     // YouTube SPA events fire on `document`; `popstate` fires on `window`.
     // yt-navigate-start fires before the URL commits, so only listen to
@@ -481,6 +546,10 @@
     const storageArea = getStorageArea();
     if (storageArea) {
         let settled = false;
+        // True when the settled payload was the defaults fallback (safety
+        // timer / lastError), not real storage data: a late real read may
+        // still overwrite it. Never overwritten the other way around.
+        let usedFallback = false;
         let safetyTimer = null;
         const clearSafetyTimer = () => {
             if (safetyTimer !== null) {
@@ -489,8 +558,9 @@
             }
         };
         const applyData = (data) => {
-            if (settled) return;
+            if (settled && !usedFallback) return;
             settled = true;
+            usedFallback = false;
             clearSafetyTimer();
             cachedStates = sanitize(data && data[STORAGE_KEY]);
             cachedQuality = sanitizeQuality(data && data[QUALITY_KEY]);
@@ -502,6 +572,7 @@
         const applyCurrent = () => {
             if (settled) return;
             settled = true;
+            usedFallback = true;
             clearSafetyTimer();
             settingsReady = true;
             applyHiding(cachedStates);

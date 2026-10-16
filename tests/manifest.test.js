@@ -14,6 +14,8 @@ describe('manifest', () => {
     assert.equal(manifest.manifest_version, 3);
     assert.match(manifest.version, /^\d+\.\d+/);
     assert.ok(Number(manifest.minimum_chrome_version) >= 111, 'world: MAIN needs Chrome 111+');
+    const pkg = require(path.join(ROOT, 'package.json'));
+    assert.equal(manifest.version, pkg.version, 'manifest and package versions must stay in sync');
   });
 
   it('declares isolated + MAIN entries with matching scope', () => {

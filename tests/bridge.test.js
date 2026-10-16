@@ -33,6 +33,11 @@ describe('settings bridge contract', () => {
     assert.ok(isolated.includes('changes[STORAGE_KEY]'), 'states changes forwarded');
     assert.ok(isolated.includes('changes[QUALITY_KEY]'), 'quality changes forwarded');
   });
+
+  it('MAIN never latches pre-storage defaults', () => {
+    assert.ok(main.includes('data.ready === false'), 'MAIN must check the ready flag');
+    assert.ok(isolated.includes('ready: settingsReady'), 'isolated must send the ready flag');
+  });
 });
 
 describe('no-fight invariants', () => {
@@ -52,9 +57,10 @@ describe('no-fight invariants', () => {
   });
 
   it('same-id events never bump the generation', () => {
-    assert.ok(/else \{\s*\n.*startWindow\(\);\s*\n.*return;/s.test(main), 'same-id else-branch must not bump gen');
+    assert.ok(/ensureWindow\(\);/.test(main), 'same-id path must only ensure polling');
+    assert.ok(!/force === true/.test(main), 'no force-bump path may exist');
     const bumpSites = (main.match(/gen\+\+/g) || []).length;
-    assert.ok(bumpSites >= 2, `gen++ in id-change + force paths (${bumpSites}x)`);
+    assert.equal(bumpSites, 1, `gen++ only on id-change (${bumpSites}x)`);
   });
 
   it('ad waits use the extended budget, not the normal window', () => {

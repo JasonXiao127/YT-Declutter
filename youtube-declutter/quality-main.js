@@ -383,11 +383,15 @@
             if (premiumPendingGen === gen) return 'wait';
             if (premiumAttemptedGen !== gen) {
                 var premiumLabel = findPremiumLabel(qualityData, resolved);
+                // qualityData can lag one poll behind levels: wait a few
+                // ticks for Premium labels before falling back to standard.
+                if (!premiumLabel && !qualityData && ticks < 5) return 'wait';
                 if (premiumLabel) {
                     premiumAttemptedGen = gen;
                     premiumPendingGen = gen;
                     var attemptGen = gen;
                     var attemptPlayer = player;
+                    var attemptVideoId = getVideoId(player);
                     var attemptResolved = resolved;
                     tryPremiumMenuClick(premiumLabel, HEIGHT[normalizeLevel(resolved)] || 0).then(function (picked) {
                         // Stale flight (navigated mid-menu): never stamp or
@@ -397,14 +401,20 @@
                             return;
                         }
                         if (premiumPendingGen === gen) premiumPendingGen = -1;
+                        // Re-resolve the player: YouTube may have swapped the
+                        // player element mid-menu without bumping the video id.
+                        var freshPlayer = getPlayer() || attemptPlayer;
+                        try {
+                            if (attemptVideoId && getVideoId(freshPlayer) !== attemptVideoId) freshPlayer = attemptPlayer;
+                        } catch (err) { /* keep freshPlayer */ }
                         if (picked) {
                             enforcedGen = gen;
                             stopPoll();
                         } else {
                             // Menu failed: fall back to standard API level once.
                             try {
-                                if (typeof attemptPlayer.setPlaybackQualityRange === 'function') attemptPlayer.setPlaybackQualityRange(attemptResolved);
-                                attemptPlayer.setPlaybackQuality(attemptResolved);
+                                if (typeof freshPlayer.setPlaybackQualityRange === 'function') freshPlayer.setPlaybackQualityRange(attemptResolved);
+                                freshPlayer.setPlaybackQuality(attemptResolved);
                             } catch (err) { /* ignore */ }
                             enforcedGen = gen;
                             stopPoll();
@@ -416,9 +426,13 @@
                             return;
                         }
                         if (premiumPendingGen === gen) premiumPendingGen = -1;
+                        var freshPlayer2 = getPlayer() || attemptPlayer;
                         try {
-                            if (typeof attemptPlayer.setPlaybackQualityRange === 'function') attemptPlayer.setPlaybackQualityRange(attemptResolved);
-                            attemptPlayer.setPlaybackQuality(attemptResolved);
+                            if (attemptVideoId && getVideoId(freshPlayer2) !== attemptVideoId) freshPlayer2 = attemptPlayer;
+                        } catch (err) { /* keep freshPlayer2 */ }
+                        try {
+                            if (typeof freshPlayer2.setPlaybackQualityRange === 'function') freshPlayer2.setPlaybackQualityRange(attemptResolved);
+                            freshPlayer2.setPlaybackQuality(attemptResolved);
                         } catch (err) { /* ignore */ }
                         enforcedGen = gen;
                         stopPoll();
@@ -487,7 +501,16 @@
         pollTimer = setInterval(pollTick, POLL_MS);
     }
 
-    function onNewNavigation(force) {
+    function ensureWindow() {
+        // Same-video spurious events (yt-navigate duplicates, loadstart with
+        // null/unready player id): never reset the tick budgets, only make
+        // sure a pending window keeps polling.
+        if (pollTimer !== null) return;
+        if (enforcedGen === gen) return;
+        startWindow();
+    }
+
+    function onNewNavigation() {
         if (!isWatchOrEmbed()) return;
         var player = getPlayer();
         var id = getVideoId(player) || null;
@@ -497,20 +520,14 @@
             enforcedGen = -1;
             premiumAttemptedGen = -1;
             premiumPendingGen = -1;
-        } else if (force === true) {
-            // Real reload of the same video (e.g. back/forward): fresh load,
-            // deserves one enforcement. Spurious same-id nav events must not
-            // reset enforcement or they would fight manual user changes.
-            gen++;
-            enforcedGen = -1;
-            premiumAttemptedGen = -1;
-            premiumPendingGen = -1;
-        } else {
-            // Same video, no new load: only ensure a pending window continues.
             startWindow();
-            return;
+        } else {
+            // Same video, no new load: only ensure a pending window
+            // continues. Never bump gen here or manual user changes would
+            // be fought (same-video Back, e.g. ?t=30, is not a fresh load;
+            // real reloads arrive via loadstart / yt-navigate with a new id).
+            ensureWindow();
         }
-        startWindow();
     }
 
     function requestSettings() {
@@ -537,6 +554,9 @@
             cached.premium = data.premium === true;
             cached.known = true;
             // If a window is pending, retry immediately with fresh settings.
+            // Intentionally NOT restarting an already-enforced or expired
+            // window: a late settings change applies from the next
+            // navigation so manual quality choices are never fought.
             if (pollTimer !== null && enforcedGen !== gen) {
                 try {
                     var outcome = attemptEnforce();
@@ -549,13 +569,13 @@
         } catch (err) { /* ignore */ }
     });
 
-    document.addEventListener('yt-navigate-finish', function () { onNewNavigation(false); });
+    document.addEventListener('yt-navigate-finish', function () { onNewNavigation(); });
     document.addEventListener('yt-page-data-updated', function () {
         // Commit-check: only treat as new if video id actually changed.
         try {
             var player = getPlayer();
             var id = getVideoId(player);
-            if (id && id !== lastVideoId && isWatchOrEmbed()) onNewNavigation(false);
+            if (id && id !== lastVideoId && isWatchOrEmbed()) onNewNavigation();
         } catch (err) { /* ignore */ }
     });
     try {
@@ -563,7 +583,7 @@
             // Same-video timestamp Back (e.g. ?t=30) must not re-enforce
             // over a manual quality change; real reloads are caught by
             // loadstart / yt-navigate events which bump the generation.
-            setTimeout(function () { onNewNavigation(false); }, 0);
+            setTimeout(function () { onNewNavigation(); }, 0);
         });
     } catch (err) { /* ignore */ }
     // New stream metadata (covers autoplay next without nav events firing first).
@@ -579,8 +599,10 @@
                     if (player && isAd(player)) return;
                 } catch (err) { /* fall through to id check */ }
                 var id = getVideoId(player);
-                if (id && id !== lastVideoId) onNewNavigation(false);
-                else startWindow();
+                if (id && id !== lastVideoId) onNewNavigation();
+                else if (id === lastVideoId) ensureWindow();
+                // id===null (player not ready): leave any pending window
+                // alone; the poll loop covers late level population.
             }
         } catch (err) { /* ignore */ }
     }, true);

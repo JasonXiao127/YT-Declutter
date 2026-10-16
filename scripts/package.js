@@ -46,17 +46,26 @@ function copyDir(rel) {
 
 function validateManifestRefs() {
   const manifest = JSON.parse(fs.readFileSync(path.join(SRC, 'manifest.json'), 'utf8'));
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  if (manifest.version !== pkg.version) {
+    throw new Error(`version drift: manifest ${manifest.version} vs package ${pkg.version}`);
+  }
   const refs = new Set(manifest.content_scripts.flatMap((e) => e.js));
   const popupHtml = fs.readFileSync(path.join(SRC, 'popup.html'), 'utf8');
-  for (const m of popupHtml.matchAll(/<script src="([^"]+)">/g)) refs.add(m[1]);
+  for (const m of popupHtml.matchAll(/<script[^>]+src=['"]([^'"]+)['"]/g)) refs.add(m[1]);
   refs.add('popup.html');
   refs.add('popup.js');
   refs.add('popup.css');
+  if (manifest.action && manifest.action.default_popup) refs.add(manifest.action.default_popup);
   for (const f of refs) {
     if (!FILES.includes(f)) throw new Error(`shippable ref not in allowlist: ${f}`);
   }
-  for (const icon of Object.values(manifest.icons)) {
+  for (const icon of Object.values(manifest.icons || {})) {
     if (!fs.existsSync(path.join(SRC, icon))) throw new Error(`missing icon: ${icon}`);
+  }
+  const actionIcons = (manifest.action && manifest.action.default_icon) || {};
+  for (const icon of Object.values(actionIcons)) {
+    if (!fs.existsSync(path.join(SRC, icon))) throw new Error(`missing action icon: ${icon}`);
   }
 }
 
@@ -72,7 +81,7 @@ function main() {
   for (const f of FILES) copyFile(f);
   for (const d of DIRS) copyDir(d);
   console.log(`dist/ written with ${FILES.length} files + ${DIRS.join(', ')}`);
-  console.log('Zip the dist/ folder for the Web Store / GitHub release.');
+  console.log('Zip deterministically with: npm run package:zip  (zip -X -o strips extra fields, sorts by name)');
 }
 
 main();

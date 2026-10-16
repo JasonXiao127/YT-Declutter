@@ -101,7 +101,6 @@ globalThis.YT_DCLTR_FEATURES = [
             'ytd-video-masthead-ad-renderer',
             'ytd-ad-slot-renderer',
             'ytd-in-feed-ad-layout-renderer',
-            'a[href*="/playables"]',
             'tp-yt-paper-toast#toast:has(yt-button-renderer#action-button a[href*="blocker"])'
         ]
     },
@@ -282,7 +281,7 @@ globalThis.YT_DCLTR_FEATURES = [
         group: 'Search & Channel',
         selectors: [
             'ytd-search ytd-shelf-renderer[thumbnail-style]:has(ytd-movie-renderer, a[href*="/movies"], a[href*="/store"], a[href*="/promo"])',
-            'ytd-search ytd-horizontal-card-list-renderer',
+            'ytd-search ytd-horizontal-card-list-renderer:has(ytd-movie-renderer, a[href*="/movies"], a[href*="/store"], a[href*="/promo"])',
             'ytd-search ytd-movie-renderer'
         ]
     },

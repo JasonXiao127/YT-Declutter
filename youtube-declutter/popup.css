@@ -142,6 +142,7 @@ h1 {
 
 .group {
     border-bottom: 1px solid var(--divider);
+    position: relative;
 }
 
 .group:last-child {
@@ -153,7 +154,7 @@ h1 {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 10px 0 6px;
+    padding: 10px 96px 6px 0;
     margin: 0;
     font-size: 11px;
     font-weight: 600;
@@ -207,6 +208,9 @@ h1 {
 }
 
 .group-actions {
+    position: absolute;
+    right: 0;
+    top: 10px;
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -331,6 +335,20 @@ h1 {
     text-align: center;
 }
 
+.persist-error {
+    font-size: 12px;
+    font-weight: 600;
+    color: #c00;
+    margin: 8px 0 0 0;
+    text-align: center;
+}
+
+@media (prefers-color-scheme: dark) {
+    .persist-error {
+        color: #ff7b72;
+    }
+}
+
 .footer-actions {
     display: flex;
     gap: 8px;
@@ -354,6 +372,12 @@ h1 {
     border-color: var(--muted);
 }
 
+.action-button:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-focus);
+}
+
 .action-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -374,6 +398,12 @@ h1 {
 
 .reset-button:hover {
     border-color: var(--muted);
+}
+
+.reset-button:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-focus);
 }
 
 .reset-button:disabled {

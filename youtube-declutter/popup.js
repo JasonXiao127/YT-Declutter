@@ -47,6 +47,7 @@
     const enabledCount = document.getElementById('enabled-count');
     const noResults = document.getElementById('no-results');
     const noResultsClear = document.getElementById('no-results-clear');
+    const persistErrorEl = document.getElementById('persist-error');
 
     function getApi() {
         try {
@@ -61,6 +62,14 @@
     let pendingQuality = null;
     let loaded = false;
     let revealed = false;
+    // True once the popup saved anything post-load: a late storage read
+    // must not overwrite the user's newer choices.
+    let savedAfterLoad = false;
+    // Depth, not boolean: stacked rapid filters schedule overlapping
+    // clears and the first must not release while a later batch is queued.
+    let suppressDepth = 0;
+    let resetArmed = false;
+    let resetTimer = null;
     let suppressToggleSave = false;
     let buildFailed = false;
     const pendingUserChanges = new Set();
@@ -129,6 +138,7 @@
     function persist() {
         // Never persist pre-load defaults over real stored values.
         if (!loaded) return;
+        savedAfterLoad = true;
         const api = getApi();
         if (!api) return;
         try {
@@ -143,6 +153,7 @@
 
     function persistQuality() {
         if (!loaded) return;
+        savedAfterLoad = true;
         const api = getApi();
         if (!api) return;
         try {
@@ -157,6 +168,7 @@
 
     function persistAll() {
         if (!loaded) return;
+        savedAfterLoad = true;
         const api = getApi();
         if (!api) return;
         try {
@@ -173,22 +185,18 @@
     }
 
     function flagPersistError() {
-        // Visible user signal: in-memory state diverged from disk.
+        // Persistent user signal: in-memory state diverged from disk.
+        // Uses a dedicated role=alert line, never the Reset button.
         try {
+            if (persistErrorEl) persistErrorEl.hidden = false;
             if (resetButton) {
                 resetButton.title = 'Save failed — changes kept for this session only';
                 resetButton.dataset.persistError = '1';
-                if (!resetArmed) {
-                    resetButton.textContent = 'Save failed — retry?';
-                }
                 setTimeout(() => {
                     try {
                         if (resetButton.dataset.persistError) {
                             delete resetButton.dataset.persistError;
-                            resetButton.title = '';
-                            if (!resetArmed) {
-                                resetButton.textContent = 'Reset to Defaults';
-                            }
+                            if (!resetArmed) resetButton.title = '';
                         }
                     } catch (err) { /* ignore */ }
                 }, 3000);
@@ -202,7 +210,9 @@
             feature.description || '',
             feature.keywords || '',
             feature.group || '',
-            feature.key || ''
+            feature.key || '',
+            // Verb-free queries like "hide comments" otherwise match nothing.
+            'hide show toggle'
         ].join(' ').toLowerCase();
     }
 
@@ -422,9 +432,16 @@
             allBtn.className = 'link-button';
             allBtn.textContent = 'All';
             allBtn.setAttribute('aria-label', `Enable all in ${group}`);
+            // Group-All footguns need the same disclosure as global Enable-all:
+            // Top Bar All hides the logo (and its home link); Shorts All
+            // turns on shorts_as_watch, which resurfaces hidden Shorts as
+            // watch cards when combined with Shorts hiding.
+            if (group === 'Top Bar') {
+                allBtn.title = 'Also hides the logo (removes the home link)';
+            } else if (group === 'Shorts') {
+                allBtn.title = 'Also opens Shorts as regular videos — combine with Shorts hiding off';
+            }
             allBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
                 setGroupEnabled(group, true);
             });
             const sep = document.createElement('span');
@@ -437,14 +454,16 @@
             noneBtn.textContent = 'None';
             noneBtn.setAttribute('aria-label', `Disable all in ${group}`);
             noneBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
                 setGroupEnabled(group, false);
             });
             groupActions.append(allBtn, sep, noneBtn);
 
-            summary.append(nameWrap, groupActions);
+            // Actions live outside <summary>: buttons nested in a summary
+            // are invalid HTML and hostile to assistive tech. Sibling
+            // positioning (see popup.css .group-actions) keeps the layout.
+            summary.append(nameWrap);
             details.appendChild(summary);
+            details.appendChild(groupActions);
 
             for (const feature of groupFeatures) {
                 const row = document.createElement('div');
@@ -596,9 +615,9 @@
         }
         let visibleRows = 0;
         // Suppress toggle-event saves for programmatic open changes.
-        // Reset async so toggle events queued in the same task are also
-        // covered; the window is one task so genuine user toggles after
-        // the filter returns are still persisted.
+        // Depth-counted so stacked rapid filters can't release early while
+        // a later batch's toggle events are still queued.
+        suppressDepth++;
         suppressToggleSave = true;
         try {
             if (listEl) {
@@ -623,7 +642,13 @@
                 });
             }
         } finally {
-            setTimeout(() => { suppressToggleSave = false; }, 0);
+            setTimeout(() => {
+                suppressDepth--;
+                if (suppressDepth <= 0) {
+                    suppressDepth = 0;
+                    suppressToggleSave = false;
+                }
+            }, 0);
         }
         if (noResults) noResults.hidden = visibleRows !== 0;
     }
@@ -631,12 +656,25 @@
     function loadStates() {
         const api = getApi();
         if (!api) {
+            flagPersistError();
             loadFailed();
             return;
         }
         let callbackFired = false;
-        const onData = (data) => {
-            if (callbackFired) return;
+        // True when the loaded payload was the fallback (error/timeout),
+        // not real storage data: a late real read may still overwrite it —
+        // unless the user already saved changes on top of the fallback.
+        let usedFallback = false;
+        const finishWith = (data, isReal) => {
+            if (isReal) {
+                // Late real data after a fallback: only accept when the user
+                // has not saved anything on top of the fallback meanwhile.
+                if (callbackFired && (!usedFallback || savedAfterLoad)) return;
+                usedFallback = false;
+            } else {
+                if (callbackFired) return;
+                usedFallback = true;
+            }
             callbackFired = true;
             if (data && data[STORAGE_KEY]) applyStored(data[STORAGE_KEY]);
             if (data) applyQualityStored(data[QUALITY_KEY]);
@@ -646,16 +684,21 @@
             if (hadPending) persist();
             if (hadPendingQuality) persistQuality();
         };
+        const onData = (data) => finishWith(data, true);
+        const onFallback = () => {
+            const hadPending = pendingUserChanges.size > 0;
+            const hadPendingQuality = finishLoad();
+            if (hadPending) persist();
+            if (hadPendingQuality) persistQuality();
+        };
         try {
             const result = api.storage.local.get([STORAGE_KEY, QUALITY_KEY], (data) => {
                 try {
                     if (api.runtime && api.runtime.lastError) {
                         if (!callbackFired) {
                             callbackFired = true;
-                            const hadPending = pendingUserChanges.size > 0;
-                            const hadPendingQuality = finishLoad();
-                            if (hadPending) persist();
-                            if (hadPendingQuality) persistQuality();
+                            usedFallback = true;
+                            onFallback();
                         }
                         return;
                     }
@@ -666,10 +709,8 @@
                 result.then(onData, () => {
                     if (!callbackFired) {
                         callbackFired = true;
-                        const hadPending = pendingUserChanges.size > 0;
-                        const hadPendingQuality = finishLoad();
-                        if (hadPending) persist();
-                        if (hadPendingQuality) persistQuality();
+                        usedFallback = true;
+                        onFallback();
                     }
                 });
             }
@@ -681,10 +722,8 @@
         setTimeout(() => {
             if (!callbackFired) {
                 callbackFired = true;
-                const hadPending = pendingUserChanges.size > 0;
-                const hadPendingQuality = finishLoad();
-                if (hadPending) persist();
-                if (hadPendingQuality) persistQuality();
+                usedFallback = true;
+                onFallback();
             }
         }, 2000);
     }
@@ -737,8 +776,6 @@
         } catch (err) { /* ignore */ }
     }
 
-    let resetArmed = false;
-    let resetTimer = null;
     function disarmReset() {
         resetArmed = false;
         if (resetButton) {
