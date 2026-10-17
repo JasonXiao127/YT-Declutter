@@ -4,6 +4,10 @@
     const STORAGE_KEY = 'states';
     const QUALITY_KEY = 'default_quality';
     const COLLAPSE_KEY = 'yt-dcltr-collapsed';
+    const UPDATE_API_URL = 'https://api.github.com/repos/JasonXiao127/YT-Declutter/releases/latest';
+    const RELEASES_PAGE_URL = 'https://github.com/JasonXiao127/YT-Declutter/releases';
+    const UPDATE_CACHE_KEY = 'update_check';
+    const UPDATE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
     const GROUP_ORDER = ['Playback', 'Shorts', 'Home / Feed', 'Top Bar', 'Watch Page', 'Search & Channel'];
     const QCORE = (typeof globalThis.YT_DCLTR_QUALITY_CORE === 'object' && globalThis.YT_DCLTR_QUALITY_CORE)
         ? globalThis.YT_DCLTR_QUALITY_CORE
@@ -48,6 +52,8 @@
     const noResults = document.getElementById('no-results');
     const noResultsClear = document.getElementById('no-results-clear');
     const persistErrorEl = document.getElementById('persist-error');
+    const versionLabel = document.getElementById('version-label');
+    const updateStatus = document.getElementById('update-status');
 
     function getApi() {
         try {
@@ -841,6 +847,184 @@
         noResultsClear.addEventListener('click', clearSearch);
     }
 
+    function normalizeTag(tag) {
+        if (typeof tag !== 'string') return '';
+        return tag.trim().replace(/^v/i, '');
+    }
+
+    function compareVersions(a, b) {
+        const pa = normalizeTag(a).split('.');
+        const pb = normalizeTag(b).split('.');
+        const len = Math.max(pa.length, pb.length);
+        for (let i = 0; i < len; i++) {
+            const na = parseInt(pa[i], 10);
+            const nb = parseInt(pb[i], 10);
+            const va = Number.isNaN(na) ? 0 : na;
+            const vb = Number.isNaN(nb) ? 0 : nb;
+            if (va !== vb) return va < vb ? -1 : 1;
+        }
+        return 0;
+    }
+
+    function isNewerVersion(latest, current) {
+        if (!latest || !current) return false;
+        return compareVersions(latest, current) > 0;
+    }
+
+    function getCurrentVersion() {
+        try {
+            const api = getApi();
+            if (api && api.runtime && typeof api.runtime.getManifest === 'function') {
+                const v = api.runtime.getManifest().version;
+                if (typeof v === 'string' && v) return v;
+            }
+        } catch (err) { /* ignore */ }
+        return '';
+    }
+
+    function renderVersion(current, cached) {
+        try {
+            if (!versionLabel && !updateStatus) return;
+            if (versionLabel) {
+                versionLabel.textContent = current ? `v${normalizeTag(current)}` : '';
+            }
+            if (!updateStatus) return;
+            updateStatus.textContent = '';
+            updateStatus.removeAttribute('data-state');
+            const link = updateStatus.querySelector('a');
+            if (link) link.remove();
+            if (!current || !cached || !cached.latest) return;
+            if (!isNewerVersion(cached.latest, current)) {
+                updateStatus.textContent = '· up to date';
+                updateStatus.dataset.state = 'ok';
+                return;
+            }
+            const a = document.createElement('a');
+            a.href = (cached.url && typeof cached.url === 'string' && cached.url.indexOf('http') === 0)
+                ? cached.url
+                : RELEASES_PAGE_URL;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            a.className = 'update-available';
+            a.textContent = `· Update v${normalizeTag(cached.latest)} available`;
+            updateStatus.appendChild(a);
+            updateStatus.dataset.state = 'update';
+        } catch (err) { /* never break the popup for a footer */ }
+    }
+
+    function readUpdateCache() {
+        const api = getApi();
+        return new Promise((resolve) => {
+            let done = false;
+            const finish = (value) => {
+                if (done) return;
+                done = true;
+                if (timer) clearTimeout(timer);
+                resolve(value);
+            };
+            const timer = setTimeout(() => finish(null), 2000);
+            if (!api) {
+                try {
+                    const raw = localStorage.getItem(UPDATE_CACHE_KEY);
+                    finish(raw ? JSON.parse(raw) : null);
+                } catch (err) { finish(null); }
+                return;
+            }
+            try {
+                const result = api.storage.local.get([UPDATE_CACHE_KEY], (data) => {
+                    try {
+                        if (api.runtime && api.runtime.lastError) { finish(null); return; }
+                    } catch (err) { /* ignore */ }
+                    finish(data ? data[UPDATE_CACHE_KEY] || null : null);
+                });
+                if (result && typeof result.then === 'function') {
+                    result.then(
+                        (data) => finish(data ? data[UPDATE_CACHE_KEY] || null : null),
+                        () => finish(null)
+                    );
+                }
+            } catch (err) { finish(null); }
+        }).then((cached) => {
+            if (cached && typeof cached === 'object' && typeof cached.latest === 'string') return cached;
+            return null;
+        });
+    }
+
+    function writeUpdateCache(entry) {
+        const api = getApi();
+        const payload = { ts: Date.now(), latest: entry.latest, url: entry.url };
+        try {
+            if (api) {
+                const result = api.storage.local.set({ [UPDATE_CACHE_KEY]: payload });
+                if (result && typeof result.catch === 'function') result.catch(() => {});
+            } else {
+                localStorage.setItem(UPDATE_CACHE_KEY, JSON.stringify(payload));
+            }
+        } catch (err) { /* cache is best-effort */ }
+    }
+
+    function isCacheFresh(cached) {
+        return !!(cached && typeof cached.ts === 'number' && (Date.now() - cached.ts) < UPDATE_CACHE_TTL_MS);
+    }
+
+    function fetchLatestRelease() {
+        if (typeof fetch !== 'function') return Promise.resolve(null);
+        return fetch(UPDATE_API_URL, { headers: { Accept: 'application/vnd.github+json' } })
+            .then((res) => {
+                if (!res || !res.ok) return null;
+                return res.json();
+            })
+            .then((data) => {
+                if (!data || typeof data.tag_name !== 'string') return null;
+                const latest = normalizeTag(data.tag_name);
+                if (!latest) return null;
+                const url = typeof data.html_url === 'string' && data.html_url.indexOf('http') === 0
+                    ? data.html_url
+                    : RELEASES_PAGE_URL;
+                return { latest, url };
+            })
+            .catch(() => null);
+    }
+
+    function maybeCheckForUpdates() {
+        const current = getCurrentVersion();
+        if (!current) return;
+        renderVersion(current, null);
+        let settled = false;
+        readUpdateCache().then((cached) => {
+            if (settled) return;
+            settled = true;
+            if (cached && cached.latest) {
+                renderVersion(current, cached);
+                if (isCacheFresh(cached) && !isNewerVersion(cached.latest, current)) return;
+                if (isCacheFresh(cached) && isNewerVersion(cached.latest, current)) return;
+            }
+            fetchLatestRelease().then((fresh) => {
+                if (!fresh) {
+                    // Offline / rate-limited / denied: keep showing just the version.
+                    if (cached && cached.latest) renderVersion(current, cached);
+                    else renderVersion(current, null);
+                    return;
+                }
+                writeUpdateCache(fresh);
+                renderVersion(current, fresh);
+            });
+        });
+    }
+
+    // Exposed for node --test source-level checks (see tests/update.test.js).
+    try {
+        globalThis.YT_DCLTR_UPDATE = {
+            UPDATE_API_URL,
+            RELEASES_PAGE_URL,
+            UPDATE_CACHE_KEY,
+            UPDATE_CACHE_TTL_MS,
+            normalizeTag,
+            compareVersions,
+            isNewerVersion
+        };
+    } catch (err) { /* ignore */ }
+
     try {
         buildUi();
     } catch (err) {
@@ -862,6 +1046,9 @@
         applySearchFilter();
     } catch (err) { /* ignore */ }
     subscribeToExternalChanges();
+    try {
+        maybeCheckForUpdates();
+    } catch (err) { /* update check never blocks settings */ }
     try {
         loadStates();
     } catch (err) {

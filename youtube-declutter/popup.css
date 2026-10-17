@@ -432,6 +432,23 @@ h1 {
     border-top: 1px solid var(--divider);
 }
 
+.version-row {
+    font-size: 11px;
+    color: var(--muted);
+    margin: 4px 0 0 0;
+    text-align: center;
+}
+
+.version-row .update-available {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.version-row .update-available:hover {
+    text-decoration: underline;
+}
+
 /* Toggle Switch */
 .switch {
     position: relative;

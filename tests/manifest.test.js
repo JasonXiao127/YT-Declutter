@@ -34,6 +34,7 @@ describe('manifest', () => {
       assert.equal(entry.run_at, 'document_start');
     }
     assert.deepEqual(manifest.permissions, ['storage']);
+    assert.deepEqual(manifest.host_permissions, ['https://api.github.com/']);
     assert.equal(manifest.action.default_popup, 'popup.html');
   });
 

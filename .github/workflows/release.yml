@@ -1,0 +1,44 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verify tag matches package + manifest version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(node -p "require('./package.json').version")
+          MANIFEST=$(node -p "require('./youtube-declutter/manifest.json').version")
+          echo "tag=$TAG pkg=$PKG manifest=$MANIFEST"
+          test "$TAG" = "$PKG" || { echo "tag v$TAG != package.json $PKG"; exit 1; }
+          test "$TAG" = "$MANIFEST" || { echo "tag v$TAG != manifest.json $MANIFEST"; exit 1; }
+
+      - run: npm test
+
+      - run: npm run package
+
+      - name: Build deterministic zip
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          cd dist && zip -X -o -r "../yt-declutter-${TAG}.zip" . && cd ..
+          ls -lh "yt-declutter-${TAG}.zip"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: yt-declutter-*.zip
+          generate_release_notes: true
