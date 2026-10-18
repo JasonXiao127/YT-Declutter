@@ -49,6 +49,6 @@ describe('features schema', () => {
   it('defaults match the documented off-by-default set', () => {
     const { defaults } = loadFeatures();
     const off = Object.entries(defaults).filter(([, v]) => !v).map(([k]) => k).sort();
-    assert.deepEqual(off, ['info_panels', 'quality_premium', 'shorts_as_watch', 'youtube_logo']);
+    assert.deepEqual(off, ['home_feed', 'info_panels', 'playlist_panel', 'quality_premium', 'recommended', 'shorts_as_watch', 'top_header', 'youtube_logo']);
   });
 });

@@ -30,7 +30,12 @@ globalThis.YT_DCLTR_FEATURES = [
         group: 'Shorts',
         selectors: [
             'ytd-rich-shelf-renderer[is-shorts]',
+            'ytd-rich-grid-renderer[is-shorts-grid]',
             'ytd-rich-section-renderer:has(ytd-rich-shelf-renderer[is-shorts])',
+            'ytd-rich-item-renderer:has(a[href*="/shorts/"])',
+            'ytd-shelf-renderer:has(a[href*="/shorts/"])',
+            'grid-shelf-view-model:has(a[href*="/shorts/"])',
+            'ytm-shorts-lockup-view-model',
             'ytd-reel-shelf-renderer',
             'ytd-guide-entry-renderer:has(a[href^="/shorts"])',
             'ytd-mini-guide-entry-renderer:has(a[href^="/shorts"])',
@@ -89,8 +94,8 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'ads_playables',
         label: 'Ads, Playables & Nag Toasts',
-        description: 'Playables links, masthead ads, ad slots, and blocker nag toasts.',
-        keywords: 'ads playables games promo masthead nag blocker toast',
+        description: 'Playables links, masthead ads, ad slots, promoted placements, and blocker nag toasts.',
+        keywords: 'ads playables games promo masthead nag blocker toast promoted companion banner',
         group: 'Home / Feed',
         selectors: [
             'ytd-rich-section-renderer:has(a[href*="/playables"])',
@@ -99,26 +104,42 @@ globalThis.YT_DCLTR_FEATURES = [
             'ytd-video-renderer:has(a[href*="/playables"])',
             'yt-lockup-view-model:has(a[href*="/playables"])',
             'ytd-video-masthead-ad-renderer',
+            'ytd-video-masthead-ad-advertiser-info-renderer',
             'ytd-ad-slot-renderer',
             'ytd-in-feed-ad-layout-renderer',
+            'ytd-display-ad-renderer',
+            'ytd-companion-slot-renderer',
+            'ytd-action-companion-ad-renderer',
+            'ytd-promoted-sparkles-web-renderer',
+            'ytd-promoted-video-renderer',
+            'ytd-compact-promoted-video-renderer',
+            'ytd-search-pyv-renderer',
+            'ytd-statement-banner-renderer',
+            'ytd-banner-promo-renderer',
             'tp-yt-paper-toast#toast:has(yt-button-renderer#action-button a[href*="blocker"])'
         ]
     },
     {
         key: 'guide_sections',
         label: 'Sidebar Sections (Explore, More from YouTube)',
-        description: 'Explore, Shopping, Premium, and More from YouTube sidebar sections.',
-        keywords: 'sidebar guide explore shopping premium more sections',
+        description: 'Explore, Gaming, Music, Shopping, Premium, Podcasts, and More from YouTube sidebar sections.',
+        keywords: 'sidebar guide explore gaming music shopping premium podcasts more sections',
         group: 'Home / Feed',
         selectors: [
             'ytd-guide-section-renderer:has(a[href^="/feed/trending"])',
             'ytd-guide-section-renderer:has(a[href^="/feed/shopping"])',
             'ytd-guide-section-renderer:has(a[href^="/feed/explore"])',
+            'ytd-guide-section-renderer:has(a[href^="/gaming"])',
+            'ytd-guide-section-renderer:has(a[href^="/music"])',
+            'ytd-guide-section-renderer:has(a[href*="/podcasts"])',
             'ytd-guide-section-renderer:has(a[href^="/premium"])',
             'ytd-guide-section-renderer:has(a[href^="/feed/storefront"])',
             'ytd-guide-section-renderer:has(a[href*="music.youtube.com"])',
             'ytd-guide-entry-renderer:has(a[href^="/premium"])',
-            'ytd-guide-entry-renderer:has(a[href^="/feed/storefront"])'
+            'ytd-guide-entry-renderer:has(a[href^="/feed/storefront"])',
+            'ytd-guide-entry-renderer:has(a[href^="/gaming"])',
+            'ytd-guide-entry-renderer:has(a[href^="/music"])',
+            'ytd-guide-entry-renderer:has(a[href*="/podcasts"])'
         ]
     },
     {
@@ -132,6 +153,34 @@ globalThis.YT_DCLTR_FEATURES = [
             'yt-button-shape:has(a[href*="/join"])',
             'ytd-button-renderer:has(a[href*="/join"])',
             'ytd-video-owner-renderer > #sponsor-button'
+        ]
+    },
+    {
+        key: 'home_feed',
+        label: 'Home Feed',
+        description: 'Entire video grid on the YouTube homepage. Opt-in; hides all home recommendations.',
+        keywords: 'home feed homepage recommendations grid',
+        group: 'Home / Feed',
+        defaultHidden: false,
+        selectors: [
+            'ytd-browse[page-subtype="home"] ytd-rich-grid-renderer'
+        ]
+    },
+    {
+        key: 'mixes',
+        label: 'Mixes & Radio',
+        description: 'Auto-generated Mix and radio playlists in feeds and sidebars.',
+        keywords: 'mix radio playlist autoplay blend',
+        group: 'Home / Feed',
+        selectors: [
+            'yt-lockup-view-model:has(a[href*="list=RDMM"])',
+            'ytd-rich-item-renderer:has(a[href*="list=RDMM"])',
+            'ytd-compact-video-renderer:has(a[href*="list=RDMM"])',
+            'ytd-video-renderer:has(a[href*="list=RDMM"])',
+            'ytd-playlist-renderer:has(a[href*="list=RDMM"])',
+            'ytd-compact-playlist-renderer:has(a[href*="list=RDMM"])',
+            'ytd-radio-renderer',
+            'ytd-compact-radio-renderer'
         ]
     },
     {
@@ -190,6 +239,18 @@ globalThis.YT_DCLTR_FEATURES = [
         ]
     },
     {
+        key: 'top_header',
+        label: 'Entire Top Header',
+        description: 'Full masthead bar across the top. Opt-in; removes search, buttons, and logo together.',
+        keywords: 'header masthead top bar full hide',
+        group: 'Top Bar',
+        defaultHidden: false,
+        selectors: [
+            '#masthead-container',
+            'ytd-masthead'
+        ]
+    },
+    {
         key: 'comments',
         label: 'Comments',
         description: 'Comments section under videos and in the engagement panel.',
@@ -203,14 +264,53 @@ globalThis.YT_DCLTR_FEATURES = [
         ]
     },
     {
+        key: 'recommended',
+        label: 'Recommended Sidebar (Up Next)',
+        description: 'Up Next and related video list beside the player. Opt-in; keeps comments and description.',
+        keywords: 'recommended related up next sidebar suggestions watch',
+        group: 'Watch Page',
+        defaultHidden: false,
+        selectors: [
+            'ytd-watch-flexy #related',
+            'ytd-watch-next-secondary-results-renderer'
+        ]
+    },
+    {
+        key: 'live_chat',
+        label: 'Live Chat',
+        description: 'Live chat and chat replay beside live streams and premieres.',
+        keywords: 'live chat stream premiere replay watch',
+        group: 'Watch Page',
+        selectors: [
+            '#chat-container',
+            '#chat',
+            'ytd-live-chat-frame'
+        ]
+    },
+    {
+        key: 'playlist_panel',
+        label: 'Playlist Queue Panel',
+        description: 'Up-next queue panel above recommendations when a playlist is open. Opt-in.',
+        keywords: 'playlist queue panel up next watch',
+        group: 'Watch Page',
+        defaultHidden: false,
+        selectors: [
+            '#playlist',
+            'ytd-playlist-panel-renderer'
+        ]
+    },
+    {
         key: 'player_overlays',
         label: 'Player Overlays (End Screens, Paid Promotion)',
-        description: 'End screens, paid promotion, and reaction panels over the player.',
-        keywords: 'player overlay end screen paid promotion reaction watch',
+        description: 'End screens, pause overlay suggestions, paid promotion, and reaction panels over the player.',
+        keywords: 'player overlay end screen pause paid promotion reaction watch',
         group: 'Watch Page',
         selectors: [
             '.ytp-ce-element',
+            '.ytp-endscreen-content',
+            '.ytp-pause-overlay',
             '.ytp-paid-content-overlay',
+            'ytd-endscreen-watch-next-renderer',
             'yt-reaction-control-panel-view-model',
             'yt-reaction-control-panel-overlay-view-model'
         ]
@@ -232,13 +332,15 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'merch_and_fundraising',
         label: 'Merch & Fundraiser Shelves',
-        description: 'Merch, donation, and badge shelves around the video.',
-        keywords: 'merch fundraiser donation shelf store watch',
+        description: 'Merch, tickets, donation, and badge shelves around the video.',
+        keywords: 'merch fundraiser donation tickets shelf store watch',
         group: 'Watch Page',
         selectors: [
             'ytd-merch-shelf-renderer',
             'ytd-structured-description-content-renderer #merch-shelf',
-            '#secondary #donation-shelf'
+            'ytd-ticket-shelf-renderer',
+            '#secondary #donation-shelf',
+            'ytd-donation-shelf-renderer'
         ]
     },
     {
@@ -276,12 +378,17 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'search_fluff',
         label: 'Search Fluff (Shelves, Movies, Promos)',
-        description: 'Movie shelves, promos, and secondary panels in search results.',
-        keywords: 'search movies shelf promo secondary',
+        description: 'Movie shelves, promos, suggestion shelves, and secondary panels in search results.',
+        keywords: 'search movies shelf promo secondary exploratory suggestions',
         group: 'Search & Channel',
         selectors: [
             'ytd-search ytd-shelf-renderer[thumbnail-style]:has(ytd-movie-renderer, a[href*="/movies"], a[href*="/store"], a[href*="/promo"])',
             'ytd-search ytd-horizontal-card-list-renderer:has(ytd-movie-renderer, a[href*="/movies"], a[href*="/store"], a[href*="/promo"])',
+            'ytd-search ytd-shelf-renderer',
+            'ytd-search ytd-horizontal-card-list-renderer',
+            'ytd-search ytd-secondary-search-container-renderer',
+            'ytd-search ytd-reel-shelf-renderer',
+            'ytd-search grid-shelf-view-model',
             'ytd-search ytd-movie-renderer'
         ]
     },

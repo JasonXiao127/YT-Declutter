@@ -36,9 +36,26 @@ jobs:
           TAG="${GITHUB_REF_NAME#v}"
           cd dist && zip -X -o -r "../yt-declutter-${TAG}.zip" . && cd ..
           ls -lh "yt-declutter-${TAG}.zip"
+          sha256sum "yt-declutter-${TAG}.zip" | tee "yt-declutter-${TAG}.zip.sha256"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: yt-declutter-*.zip
+          files: |
+            yt-declutter-*.zip
+            yt-declutter-*.zip.sha256
           generate_release_notes: true
+          body: |
+            ## Install (Chrome / Chromium / Edge / Brave / Opera)
+
+            One file: download `yt-declutter-${{ github.ref_name }}.zip` below, unzip it, then load it once:
+
+            1. Unzip the file.
+            2. Open `chrome://extensions`, turn on **Developer mode**.
+            3. Click **Load unpacked** and pick the unzipped folder.
+
+            To update later, download the new zip and unzip it over the old folder — settings are kept.
+
+            > Chrome does not allow true one-click installs outside the Chrome Web Store.
+            > Unpacked loading is the supported path here (no Web Store account needed).
+            > Verify integrity with the `.sha256` file: `sha256sum -c yt-declutter-*.zip.sha256`.

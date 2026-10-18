@@ -7,5 +7,6 @@
     "test": "node --test \"tests/*.test.js\"",
     "package": "node scripts/package.js",
     "package:zip": "npm run package && cd dist && zip -X -o -r ../yt-declutter-$npm_package_version.zip . && cd .. && echo \"wrote yt-declutter-$npm_package_version.zip (deterministic: zip -X -o)\""
-  }
+  },
+  "license": "GPL-3.0-or-later"
 }
