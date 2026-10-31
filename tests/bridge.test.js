@@ -29,7 +29,7 @@ describe('settings bridge contract', () => {
 
   it('isolated posts after every init path and both storage keys', () => {
     const posts = (isolated.match(/postQualitySettings\(\)/g) || []).length;
-    assert.ok(posts >= 4, `expected >=4 post sites, found ${posts}`);
+    assert.ok(posts >= 5, `expected >=5 post sites, found ${posts}`);
     assert.ok(isolated.includes('changes[STORAGE_KEY]'), 'states changes forwarded');
     assert.ok(isolated.includes('changes[QUALITY_KEY]'), 'quality changes forwarded');
   });
@@ -41,12 +41,15 @@ describe('settings bridge contract', () => {
 });
 
 describe('no-fight invariants', () => {
-  it('message handler never restarts polling', () => {
+  it('message handler restarts only for first settings or an explicit enable', () => {
     const start = main.indexOf("addEventListener('message'");
     const end = main.indexOf("document.addEventListener('yt-navigate-finish'");
     const handler = main.slice(start, end);
-    assert.ok(!/startWindow\(\)/.test(handler), 'handler must not call startWindow');
-    assert.ok(/pollTimer !== null && enforcedGen !== gen/.test(handler), 'handler only retries pending windows');
+    // Late settings changes must not reopen an enforced window; only the
+    // first real payload (after a fallback) or an explicit off->on toggle.
+    assert.match(handler, /wasKnown && !wasEnabled && cached\.enabled/);
+    assert.match(handler, /!wasKnown && initialized && pollTimer === null/);
+    assert.match(handler, /pollTimer !== null && enforcedGen !== gen/);
   });
 
   it('every enforcement stamps the generation and stops', () => {

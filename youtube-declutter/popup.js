@@ -41,6 +41,64 @@
             feature.key,
             feature.behavior ? !!feature.defaultEnabled : feature.defaultHidden !== false
         ]));
+    const FEATURE_BY_KEY = Object.fromEntries(FEATURES.map((feature) => [feature.key, feature]));
+    // Monk Mode is a layer, not a toggle: it never renders as a row and is
+    // excluded from counts, badges, search, and bulk All/None. Its preset
+    // forces fixed values while active; stored states are never overwritten.
+    const TOGGLE_FEATURES = FEATURES.filter((f) => !f || f.mode !== true);
+    const MONK_FEATURE = FEATURES.find((f) => f && f.mode === true) || null;
+    const MONK_PRESET = (MONK_FEATURE && MONK_FEATURE.preset && typeof MONK_FEATURE.preset === 'object')
+        ? MONK_FEATURE.preset
+        : {};
+    const MONK_PRESET_KEYS = Object.keys(MONK_PRESET);
+
+    // Opt-in = off by default because it is destructive (home feed, full
+    // masthead) or needs Premium / a different watching mode. Bulk All never
+    // turns these on; the user has to choose each one. The mode card itself
+    // is never an opt-in: it is excluded from bulk actions entirely.
+    function isOptIn(feature) {
+        if (!feature || feature.mode === true) return false;
+        if (feature.defaultHidden === false) return true;
+        return !!feature.behavior && feature.defaultEnabled === false;
+    }
+
+    function toggleFeatures() {
+        return TOGGLE_FEATURES;
+    }
+
+    function isMonkOn() {
+        try {
+            return !!states['monk_mode'];
+        } catch (err) {
+            return false;
+        }
+    }
+
+    // Effective value shown while the mode is active: the preset wins over
+    // the stored toggle. Untouched keys (quality, info panels, ...) and the
+    // inactive mode fall through to the stored state.
+    function resolveEffective(base) {
+        try {
+            const src = base || states;
+            if (!src || !src['monk_mode']) return { ...src };
+            const eff = { ...src };
+            for (const key of MONK_PRESET_KEYS) eff[key] = !!MONK_PRESET[key];
+            return eff;
+        } catch (err) {
+            return { ...(base || states) };
+        }
+    }
+
+    function effectiveIsOn(key, eff) {
+        try {
+            const snap = eff || resolveEffective();
+            if (!snap[key]) return false;
+            const feature = FEATURE_BY_KEY[key];
+            return !feature || !feature.parent || !!snap[feature.parent];
+        } catch (err) {
+            return false;
+        }
+    }
 
     const listEl = document.getElementById('toggle-list');
     const resetButton = document.getElementById('reset-button');
@@ -54,6 +112,9 @@
     const persistErrorEl = document.getElementById('persist-error');
     const versionLabel = document.getElementById('version-label');
     const updateStatus = document.getElementById('update-status');
+    const monkCard = document.getElementById('monk-card');
+    const monkButton = document.getElementById('monk-button');
+    const monkStatus = document.getElementById('monk-status');
 
     function getApi() {
         try {
@@ -71,6 +132,17 @@
     // True once the popup saved anything post-load: a late storage read
     // must not overwrite the user's newer choices.
     let savedAfterLoad = false;
+    // True while the UI runs on the storage-fallback snapshot. Writes are
+    // deferred until the real read arrives, then merged with user edits.
+    let fallbackActive = false;
+    // Track each storage key separately: a successful quality write must not
+    // hide an alert about a failed states write (or vice versa).
+    let statesSaveFailed = false;
+    let qualitySaveFailed = false;
+    // Monotonic write ids per key: a slow earlier write resolving after a
+    // newer one must not clear (or set) the banner for the newer state.
+    let statesSaveSeq = 0;
+    let qualitySaveSeq = 0;
     // Depth, not boolean: stacked rapid filters schedule overlapping
     // clears and the first must not release while a later batch is queued.
     let suppressDepth = 0;
@@ -138,76 +210,198 @@
         if (resetButton) resetButton.disabled = !enabled;
         if (enableAllButton) enableAllButton.disabled = !enabled;
         if (disableAllButton) disableAllButton.disabled = !enabled;
+        if (monkButton) monkButton.disabled = !enabled;
         syncQualityUi();
+        syncMonkUi();
+    }
+
+    // While Monk Mode is active the preset keys show their forced state and
+    // cannot be flipped; group All/None and global Enable all are parked
+    // (they would fight the preset). Disable all and Reset stay available
+    // as exits: both clear the mode along with everything else.
+    function syncMonkUi() {
+        try {
+            const monk = isMonkOn();
+            if (monkCard) monkCard.classList.toggle('monk-active', monk);
+            if (monkButton) {
+                monkButton.textContent = monk ? 'Exit Monk Mode' : 'Enter Monk Mode';
+                monkButton.setAttribute('aria-pressed', monk ? 'true' : 'false');
+            }
+            if (monkStatus) {
+                monkStatus.textContent = monk
+                    ? `On · ${MONK_PRESET_KEYS.length} settings locked`
+                    : '';
+            }
+            if (listEl) {
+                for (const feature of TOGGLE_FEATURES) {
+                    const input = document.getElementById(`toggle-${feature.key}`);
+                    if (!input) continue;
+                    const locked = monk && Object.prototype.hasOwnProperty.call(MONK_PRESET, feature.key);
+                    const row = input.closest('.toggle-row');
+                    if (locked) {
+                        input.checked = !!MONK_PRESET[feature.key];
+                        input.disabled = true;
+                        if (row) {
+                            row.classList.add('monk-locked');
+                            row.title = 'Controlled by Monk Mode — exit Monk Mode to change this.';
+                        }
+                    } else if (row) {
+                        row.classList.remove('monk-locked');
+                        row.removeAttribute('title');
+                    }
+                }
+                // Re-assert child gating for unlocked rows (quality child).
+                syncChildToggles();
+                if (monk) {
+                    listEl.querySelectorAll('.group-actions .link-button').forEach((btn) => {
+                        btn.disabled = true;
+                    });
+                } else if (loaded) {
+                    // Exiting the mode must hand the shortcuts back.
+                    listEl.querySelectorAll('.group-actions .link-button').forEach((btn) => {
+                        btn.disabled = false;
+                    });
+                }
+            }
+            if (enableAllButton) enableAllButton.disabled = monk ? true : !loaded;
+        } catch (err) { /* never break the popup for the mode card */ }
     }
 
     function persist() {
         // Never persist pre-load defaults over real stored values.
         if (!loaded) return;
-        savedAfterLoad = true;
+        // Storage fallback: the stored values were never read. Keep edits in
+        // memory and let the late real read merge them; writing now would
+        // replace every saved setting with the defaults snapshot.
+        if (fallbackActive) return;
         const api = getApi();
         if (!api) return;
+        savedAfterLoad = true;
+        const seq = ++statesSaveSeq;
+        const ok = () => { if (seq === statesSaveSeq) markSave('states', false); };
+        const fail = () => { if (seq === statesSaveSeq) markSave('states', true); };
         try {
-            const result = api.storage.local.set({ [STORAGE_KEY]: { ...states } });
-            if (result && typeof result.catch === 'function') {
-                result.catch((err) => { flagPersistError(); });
+            const result = api.storage.local.set({ [STORAGE_KEY]: { ...states } }, function () {
+                try {
+                    if (api.runtime && api.runtime.lastError) fail();
+                    else ok();
+                } catch (err) { fail(); }
+            });
+            if (result && typeof result.then === 'function') {
+                result.then(ok, fail);
             }
         } catch (err) {
-            flagPersistError();
+            fail();
         }
     }
 
     function persistQuality() {
         if (!loaded) return;
-        savedAfterLoad = true;
+        if (fallbackActive) return;
         const api = getApi();
         if (!api) return;
+        savedAfterLoad = true;
+        const seq = ++qualitySaveSeq;
+        const ok = () => { if (seq === qualitySaveSeq) markSave('quality', false); };
+        const fail = () => { if (seq === qualitySaveSeq) markSave('quality', true); };
         try {
-            const result = api.storage.local.set({ [QUALITY_KEY]: preferredQuality });
-            if (result && typeof result.catch === 'function') {
-                result.catch((err) => { flagPersistError(); });
+            const result = api.storage.local.set({ [QUALITY_KEY]: preferredQuality }, function () {
+                try {
+                    if (api.runtime && api.runtime.lastError) fail();
+                    else ok();
+                } catch (err) { fail(); }
+            });
+            if (result && typeof result.then === 'function') {
+                result.then(ok, fail);
             }
         } catch (err) {
-            flagPersistError();
+            fail();
         }
     }
 
     function persistAll() {
         if (!loaded) return;
-        savedAfterLoad = true;
+        if (fallbackActive) return;
         const api = getApi();
         if (!api) return;
+        savedAfterLoad = true;
+        const statesSeq = ++statesSaveSeq;
+        const qualitySeq = ++qualitySaveSeq;
+        const ok = () => {
+            if (statesSeq === statesSaveSeq) markSave('states', false);
+            if (qualitySeq === qualitySaveSeq) markSave('quality', false);
+            if (statesSeq === statesSaveSeq && qualitySeq === qualitySaveSeq) clearStorageMessage();
+        };
+        const fail = () => {
+            if (statesSeq === statesSaveSeq) markSave('states', true);
+            if (qualitySeq === qualitySaveSeq) markSave('quality', true);
+        };
         try {
             const result = api.storage.local.set({
                 [STORAGE_KEY]: { ...states },
                 [QUALITY_KEY]: preferredQuality
+            }, function () {
+                try {
+                    if (api.runtime && api.runtime.lastError) fail();
+                    else ok();
+                } catch (err) { fail(); }
             });
-            if (result && typeof result.catch === 'function') {
-                result.catch((err) => { flagPersistError(); });
+            if (result && typeof result.then === 'function') {
+                result.then(ok, fail);
             }
         } catch (err) {
-            flagPersistError();
+            fail();
         }
     }
 
-    function flagPersistError() {
-        // Persistent user signal: in-memory state diverged from disk.
-        // Uses a dedicated role=alert line, never the Reset button.
+    function setStorageMessage(message) {
         try {
-            if (persistErrorEl) persistErrorEl.hidden = false;
-            if (resetButton) {
-                resetButton.title = 'Save failed — changes kept for this session only';
-                resetButton.dataset.persistError = '1';
-                setTimeout(() => {
-                    try {
-                        if (resetButton.dataset.persistError) {
-                            delete resetButton.dataset.persistError;
-                            if (!resetArmed) resetButton.title = '';
-                        }
-                    } catch (err) { /* ignore */ }
-                }, 3000);
+            if (!persistErrorEl) return;
+            persistErrorEl.textContent = message;
+            persistErrorEl.hidden = false;
+        } catch (err) { /* ignore */ }
+    }
+
+    function clearStorageMessage() {
+        // Keep a real save failure visible until that key is written.
+        if (statesSaveFailed || qualitySaveFailed) return;
+        try {
+            if (persistErrorEl) persistErrorEl.hidden = true;
+            if (resetButton && resetButton.dataset.persistError) {
+                delete resetButton.dataset.persistError;
+                if (!resetArmed) resetButton.title = '';
             }
         } catch (err) { /* ignore */ }
+    }
+
+    function markSave(name, failed) {
+        if (name === 'states') statesSaveFailed = failed;
+        else if (name === 'quality') qualitySaveFailed = failed;
+        else {
+            statesSaveFailed = failed;
+            qualitySaveFailed = failed;
+        }
+        if (statesSaveFailed || qualitySaveFailed) {
+            // Persistent user signal: in-memory state diverged from disk.
+            // Uses a dedicated role=alert line, never the Reset button.
+            setStorageMessage('Save failed — changes kept for this session only.');
+            try {
+                if (resetButton) {
+                    resetButton.title = 'Save failed — changes kept for this session only';
+                    resetButton.dataset.persistError = '1';
+                    setTimeout(() => {
+                        try {
+                            if (resetButton.dataset.persistError) {
+                                delete resetButton.dataset.persistError;
+                                if (!resetArmed) resetButton.title = '';
+                            }
+                        } catch (err) { /* ignore */ }
+                    }, 3000);
+                }
+            } catch (err) { /* ignore */ }
+        } else {
+            clearStorageMessage();
+        }
     }
 
     function searchableText(feature) {
@@ -222,9 +416,16 @@
         ].join(' ').toLowerCase();
     }
 
+    function featureIsOn(key) {
+        if (!states[key]) return false;
+        const feature = FEATURE_BY_KEY[key];
+        return !feature || !feature.parent || !!states[feature.parent];
+    }
+
     function updateCounts() {
-        const total = FEATURES.length;
-        const on = FEATURES.filter((f) => !!states[f.key]).length;
+        const eff = resolveEffective();
+        const total = TOGGLE_FEATURES.length;
+        const on = TOGGLE_FEATURES.filter((f) => effectiveIsOn(f.key, eff)).length;
         if (enabledCount) enabledCount.textContent = total ? `${on}/${total} on` : '';
         // Per-group badges.
         if (listEl) {
@@ -232,8 +433,14 @@
                 const badge = details.querySelector('.group-count');
                 if (!badge) return;
                 const keys = (details.dataset.keys || '').split(',').filter(Boolean);
-                const n = keys.filter((k) => !!states[k]).length;
+                const n = keys.filter((k) => effectiveIsOn(k, eff)).length;
                 badge.textContent = `${n}/${keys.length}`;
+                // The shortcuts live inside <summary>, so give the disclosure
+                // an explicit name instead of letting button labels leak in.
+                const summary = details.querySelector('summary');
+                if (summary) {
+                    summary.setAttribute('aria-label', `${details.dataset.group}, ${n} of ${keys.length} on`);
+                }
             });
         }
     }
@@ -241,15 +448,27 @@
     function refreshCheckbox(feature) {
         const input = document.getElementById(`toggle-${feature.key}`);
         if (input) {
-            input.checked = !!states[feature.key];
+            if (isMonkOn() && Object.prototype.hasOwnProperty.call(MONK_PRESET, feature.key)) {
+                input.checked = !!MONK_PRESET[feature.key];
+            } else {
+                input.checked = !!states[feature.key];
+            }
             input.disabled = !loaded;
         }
     }
 
     function syncChildToggles() {
-        FEATURES.filter((f) => f.parent).forEach((child) => {
+        const monk = isMonkOn();
+        TOGGLE_FEATURES.filter((f) => f.parent).forEach((child) => {
             const input = document.getElementById(`toggle-${child.key}`);
             if (!input) return;
+            // Monk-locked rows stay disabled with their forced state.
+            if (monk && Object.prototype.hasOwnProperty.call(MONK_PRESET, child.key)) {
+                input.disabled = true;
+                const row = input.closest('.toggle-row');
+                if (row) row.classList.toggle('child-disabled', false);
+                return;
+            }
             const parentOff = child.parent && !states[child.parent];
             input.disabled = !loaded || !!parentOff;
             const row = input.closest('.toggle-row');
@@ -272,33 +491,43 @@
     }
 
     function refreshAll() {
-        for (const feature of FEATURES) refreshCheckbox(feature);
+        for (const feature of TOGGLE_FEATURES) refreshCheckbox(feature);
         syncChildToggles();
         syncQualityUi();
+        syncMonkUi();
         updateCounts();
     }
 
     function applyStored(stored) {
-        if (!stored || typeof stored !== 'object') return;
+        // Match content.js sanitize(): a corrupt/non-object payload means
+        // defaults, not "leave the previous values alone".
+        if (!stored || typeof stored !== 'object') stored = {};
         for (const feature of FEATURES) {
-            if (!isSafeKey(feature.key)) continue;
-            if (typeof stored[feature.key] === 'boolean' && !pendingUserChanges.has(feature.key)) {
-                states[feature.key] = stored[feature.key];
-            }
+            if (!isSafeKey(feature.key) || pendingUserChanges.has(feature.key)) continue;
+            // Missing/non-boolean keys mean a partial write or an older
+            // schema; content.js sanitize() fills those from DEFAULTS, so the
+            // popup must do the same or its next save resurrects stale values.
+            states[feature.key] = (typeof stored[feature.key] === 'boolean')
+                ? stored[feature.key]
+                : DEFAULTS[feature.key];
         }
     }
 
     function applyQualityStored(value) {
         if (pendingQuality !== null) return; // pre-load user choice wins
-        if (typeof value === 'string') preferredQuality = sanitizeQuality(value);
+        // Match content.js sanitizeQuality(): null/number/undefined all
+        // resolve to the default instead of leaving a stale UI value.
+        preferredQuality = sanitizeQuality(value);
     }
 
-    function finishLoad() {
+    function finishLoad(keepPending) {
         loaded = true;
-        pendingUserChanges.clear();
         const hadPendingQuality = pendingQuality !== null;
         if (hadPendingQuality) preferredQuality = pendingQuality;
-        pendingQuality = null;
+        if (!keepPending) {
+            pendingUserChanges.clear();
+            pendingQuality = null;
+        }
         refreshAll();
         setUiEnabled(true);
         applySearchFilter();
@@ -308,7 +537,7 @@
 
     function groupsInOrder() {
         const seen = [];
-        for (const f of FEATURES) {
+        for (const f of TOGGLE_FEATURES) {
             if (!seen.includes(f.group)) seen.push(f.group);
         }
         return [
@@ -317,11 +546,42 @@
         ];
     }
 
+    // Keys a bulk action intends to set while running on the fallback
+    // snapshot. Enable deliberately leaves opt-ins alone; disable targets
+    // every toggle. The mode card itself is never in scope: entering the
+    // mode is always an explicit tap, and Disable all exits it directly.
+    function fallbackScopeKeys(features, group, enabled) {
+        return (features || [])
+            .filter((feature) => feature && feature.mode !== true &&
+                (group === null || feature.group === group) &&
+                (!enabled || !isOptIn(feature)))
+            .map((feature) => feature.key);
+    }
+
+    function noteFallbackScope(group, enabled) {
+        if (!fallbackActive) return;
+        for (const key of fallbackScopeKeys(TOGGLE_FEATURES, group, enabled)) {
+            pendingUserChanges.add(key);
+        }
+    }
+
+    // Pure merge decision for the late-read path (unit-tested): one atomic
+    // write when both keys are dirty, otherwise the single dirty key.
+    function mergePersistAction(hadPendingStates, hadPendingQuality) {
+        if (hadPendingStates && hadPendingQuality) return 'all';
+        if (hadPendingStates) return 'states';
+        if (hadPendingQuality) return 'quality';
+        return null;
+    }
+
     function setGroupEnabled(group, enabled) {
         if (!loaded) return;
+        // Group shortcuts are parked while the mode holds the preset.
+        if (isMonkOn()) return;
+        noteFallbackScope(group, enabled);
         let changed = false;
         if (!enabled) {
-            for (const f of FEATURES) {
+            for (const f of TOGGLE_FEATURES) {
                 if (f.group !== group) continue;
                 if (!!states[f.key] !== false) {
                     states[f.key] = false;
@@ -329,17 +589,18 @@
                 }
             }
         } else {
-            // Pass 1: parents and standalone features first (order-independent).
-            for (const f of FEATURES) {
-                if (f.group !== group || f.parent) continue;
+            // Pass 1: parents and standalone default-on features first
+            // (order-independent). Opt-ins are never enabled in bulk.
+            for (const f of TOGGLE_FEATURES) {
+                if (f.group !== group || f.parent || isOptIn(f)) continue;
                 if (!states[f.key]) {
                     states[f.key] = true;
                     changed = true;
                 }
             }
             // Pass 2: children whose parent is now on.
-            for (const f of FEATURES) {
-                if (f.group !== group || !f.parent) continue;
+            for (const f of TOGGLE_FEATURES) {
+                if (f.group !== group || !f.parent || isOptIn(f)) continue;
                 if (!states[f.parent]) continue;
                 if (!states[f.key]) {
                     states[f.key] = true;
@@ -356,25 +617,37 @@
 
     function setAllEnabled(enabled) {
         if (!loaded) return;
+        // Global Enable all is parked while the mode holds the preset.
+        // Disable all doubles as a mode exit: it clears every toggle and
+        // the mode itself so the page returns to the stored setup (off).
+        if (isMonkOn() && enabled) return;
+        noteFallbackScope(null, enabled);
         let changed = false;
         if (!enabled) {
-            for (const f of FEATURES) {
+            for (const f of TOGGLE_FEATURES) {
                 if (!!states[f.key] !== false) {
                     states[f.key] = false;
                     changed = true;
                 }
             }
+            if (!!states['monk_mode'] !== false) {
+                states['monk_mode'] = false;
+                changed = true;
+            }
+            if (fallbackActive && changed) pendingUserChanges.add('monk_mode');
         } else {
-            // Pass 1: parents and standalone features first (order-independent).
-            for (const f of FEATURES) {
-                if (!f.parent && !states[f.key]) {
+            // Pass 1: parents and standalone default-on features first.
+            for (const f of TOGGLE_FEATURES) {
+                if (f.parent || isOptIn(f)) continue;
+                if (!states[f.key]) {
                     states[f.key] = true;
                     changed = true;
                 }
             }
             // Pass 2: children whose parent is now on.
-            for (const f of FEATURES) {
-                if (f.parent && states[f.parent] && !states[f.key]) {
+            for (const f of TOGGLE_FEATURES) {
+                if (!f.parent || isOptIn(f)) continue;
+                if (states[f.parent] && !states[f.key]) {
                     states[f.key] = true;
                     changed = true;
                 }
@@ -389,7 +662,7 @@
     function buildUi() {
         if (!listEl) return;
         listEl.textContent = '';
-        if (FEATURES.length === 0) {
+        if (TOGGLE_FEATURES.length === 0) {
             const empty = document.createElement('p');
             empty.className = 'footer';
             empty.textContent = 'Could not load toggle definitions (features.js missing).';
@@ -400,7 +673,7 @@
         }
         const query = currentQuery();
         for (const group of groupsInOrder()) {
-            const groupFeatures = FEATURES.filter((f) => f.group === group);
+            const groupFeatures = TOGGLE_FEATURES.filter((f) => f.group === group);
             if (groupFeatures.length === 0) continue;
 
             const details = document.createElement('details');
@@ -437,17 +710,15 @@
             allBtn.type = 'button';
             allBtn.className = 'link-button';
             allBtn.textContent = 'All';
-            allBtn.setAttribute('aria-label', `Enable all in ${group}`);
-            // Group-All footguns need the same disclosure as global Enable-all:
-            // Top Bar All hides the logo (and its home link); Shorts All
-            // turns on shorts_as_watch, which resurfaces hidden Shorts as
-            // watch cards when combined with Shorts hiding.
-            if (group === 'Top Bar') {
-                allBtn.title = 'Also hides the logo (removes the home link)';
-            } else if (group === 'Shorts') {
-                allBtn.title = 'Also opens Shorts as regular videos — combine with Shorts hiding off';
-            }
+            allBtn.setAttribute('aria-label', `Enable default-on toggles in ${group}`);
+            // Bulk enable leaves opt-ins alone, so no group All can
+            // accidentally hide the masthead or turn on Shorts-as-watch.
+            allBtn.title = `Enable the default-on ${group} toggles (opt-ins are not turned on)`;
             allBtn.addEventListener('click', (e) => {
+                // The shortcut sits inside <summary> so it stays reachable
+                // when the group is collapsed; stop the click from toggling.
+                e.preventDefault();
+                e.stopPropagation();
                 setGroupEnabled(group, true);
             });
             const sep = document.createElement('span');
@@ -460,16 +731,16 @@
             noneBtn.textContent = 'None';
             noneBtn.setAttribute('aria-label', `Disable all in ${group}`);
             noneBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 setGroupEnabled(group, false);
             });
             groupActions.append(allBtn, sep, noneBtn);
 
-            // Actions live outside <summary>: buttons nested in a summary
-            // are invalid HTML and hostile to assistive tech. Sibling
-            // positioning (see popup.css .group-actions) keeps the layout.
-            summary.append(nameWrap);
+            // Keep the shortcuts inside <summary> so they stay reachable
+            // while the group is collapsed.
+            summary.append(nameWrap, groupActions);
             details.appendChild(summary);
-            details.appendChild(groupActions);
 
             for (const feature of groupFeatures) {
                 const row = document.createElement('div');
@@ -495,7 +766,10 @@
                     textWrap.appendChild(desc);
                 }
 
-                const switchWrap = document.createElement('label');
+                // The transparent input covers this wrapper, so it only
+                // needs to be a span. A second <label> would announce the
+                // same checkbox twice to screen readers.
+                const switchWrap = document.createElement('span');
                 switchWrap.className = 'switch';
 
                 const input = document.createElement('input');
@@ -507,8 +781,14 @@
                 if (descId) input.setAttribute('aria-describedby', descId);
                 input.addEventListener('change', () => {
                     states[feature.key] = input.checked;
-                    if (!loaded) {
+                    if (!loaded || fallbackActive) {
+                        // No real settings yet: keep the choice so the late
+                        // read can merge it instead of writing defaults.
                         pendingUserChanges.add(feature.key);
+                        if (loaded) {
+                            refreshAll();
+                            applySearchFilter();
+                        }
                         return;
                     }
                     persist();
@@ -576,7 +856,7 @@
                 const next = sanitizeQuality(select.value);
                 select.value = next;
                 preferredQuality = next;
-                if (!loaded) {
+                if (!loaded || fallbackActive) {
                     pendingQuality = next;
                     return;
                 }
@@ -611,7 +891,7 @@
     function applySearchFilter() {
         const query = currentQuery();
         if (searchClear) searchClear.hidden = !query;
-        if (FEATURES.length === 0) {
+        if (TOGGLE_FEATURES.length === 0) {
             if (noResults) noResults.hidden = true;
             return;
         }
@@ -662,21 +942,22 @@
     function loadStates() {
         const api = getApi();
         if (!api) {
-            flagPersistError();
             loadFailed();
             return;
         }
         let callbackFired = false;
         // True when the loaded payload was the fallback (error/timeout),
-        // not real storage data: a late real read may still overwrite it —
-        // unless the user already saved changes on top of the fallback.
+        // not real storage data: a late real read may still overwrite it.
         let usedFallback = false;
         const finishWith = (data, isReal) => {
             if (isReal) {
-                // Late real data after a fallback: only accept when the user
-                // has not saved anything on top of the fallback meanwhile.
+                // Late real data after a fallback: only accept when no save
+                // has happened on top of it. Fallback writes are deferred,
+                // so savedAfterLoad stays false and the merge can run.
                 if (callbackFired && (!usedFallback || savedAfterLoad)) return;
                 usedFallback = false;
+                fallbackActive = false;
+                clearStorageMessage();
             } else {
                 if (callbackFired) return;
                 usedFallback = true;
@@ -685,17 +966,34 @@
             if (data && data[STORAGE_KEY]) applyStored(data[STORAGE_KEY]);
             if (data) applyQualityStored(data[QUALITY_KEY]);
             const hadPending = pendingUserChanges.size > 0;
-            const hadPendingQuality = finishLoad();
-            // If the user toggled while loading, their choice wins and is now saved.
-            if (hadPending) persist();
-            if (hadPendingQuality) persistQuality();
+            const hadPendingQuality = finishLoad(false);
+            // User choices made while loading win over the payload. A single
+            // atomic write avoids stranding a half-merged state if the popup
+            // closes between two separate sets.
+            const mergeAction = mergePersistAction(hadPending, hadPendingQuality);
+            if (mergeAction === 'all') persistAll();
+            else if (mergeAction === 'states') persist();
+            else if (mergeAction === 'quality') persistQuality();
         };
-        const onData = (data) => finishWith(data, true);
+        const onData = (data) => {
+            // A successful get always returns an object (even an empty one).
+            // Treat a missing payload as a failed read so it cannot clear the
+            // fallback and overwrite storage with defaults.
+            if (!data || typeof data !== 'object') return;
+            finishWith(data, true);
+        };
         const onFallback = () => {
+            // The real read has not answered. Show the UI, but do not write:
+            // persist() is a no-op until the late read merges user edits.
+            fallbackActive = true;
+            setStorageMessage('Settings could not be loaded — changes stay in this popup only.');
             const hadPending = pendingUserChanges.size > 0;
-            const hadPendingQuality = finishLoad();
-            if (hadPending) persist();
-            if (hadPendingQuality) persistQuality();
+            const hadPendingQuality = pendingQuality !== null;
+            // Keep pending keys/quality so applyStored() lets them win when
+            // the real read finally arrives.
+            finishLoad(true);
+            if (hadPending) persist(); // deferred by fallbackActive
+            if (hadPendingQuality) persistQuality(); // deferred by fallbackActive
         };
         try {
             const result = api.storage.local.get([STORAGE_KEY, QUALITY_KEY], (data) => {
@@ -732,9 +1030,36 @@
                 onFallback();
             }
         }, 2000);
+        // One extra read after the fallback window. A fresh request can
+        // rescue a hung first one, merge pending edits, and persist them so
+        // open tabs receive the changes.
+        setTimeout(() => {
+            if (!usedFallback || savedAfterLoad) return;
+            try {
+                const retry = api.storage.local.get([STORAGE_KEY, QUALITY_KEY], (data) => {
+                    try {
+                        // A failed retry is not authoritative: stay on the
+                        // fallback (and keep pending edits) instead of
+                        // treating an empty response as real settings.
+                        if (api.runtime && api.runtime.lastError) return;
+                    } catch (err) { /* ignore */ }
+                    if (!data || typeof data !== 'object') return;
+                    onData(data);
+                });
+                if (retry && typeof retry.then === 'function') {
+                    retry.then((data) => {
+                        if (data && typeof data === 'object') onData(data);
+                    }, () => {});
+                }
+            } catch (err) { /* stay in fallback */ }
+        }, 2500);
     }
 
     function loadFailed() {
+        // No usable storage: keep edits session-only instead of writing a
+        // defaults snapshot over settings we could not read.
+        fallbackActive = true;
+        setStorageMessage('Settings unavailable — changes stay in this popup only.');
         loaded = true;
         pendingUserChanges.clear();
         pendingQuality = null;
@@ -754,8 +1079,11 @@
                     if (changes[STORAGE_KEY]) {
                         if (changes[STORAGE_KEY].newValue) {
                             applyStored(changes[STORAGE_KEY].newValue);
-                        } else {
-                            // Key deleted: fall back to defaults (matches content.js).
+                        } else if (!fallbackActive || pendingUserChanges.size === 0) {
+                            // Key deleted: fall back to defaults (matches
+                            // content.js). Keep pending user edits during the
+                            // initial read; with no pending edits, the clear
+                            // is authoritative.
                             states = { ...DEFAULTS };
                             pendingUserChanges.clear();
                         }
@@ -763,8 +1091,10 @@
                     }
                     if (changes[QUALITY_KEY]) {
                         if (changes[QUALITY_KEY].newValue === undefined) {
-                            preferredQuality = QUALITY_DEFAULT;
-                            pendingQuality = null;
+                            if (!fallbackActive || pendingQuality === null) {
+                                preferredQuality = QUALITY_DEFAULT;
+                                pendingQuality = null;
+                            }
                         } else {
                             applyQualityStored(changes[QUALITY_KEY].newValue);
                             if (loaded && pendingQuality === null) {
@@ -787,6 +1117,7 @@
         if (resetButton) {
             resetButton.classList.remove('armed');
             resetButton.textContent = 'Reset to Defaults';
+            if (!statesSaveFailed && !qualitySaveFailed) resetButton.title = '';
         }
         if (resetTimer) {
             clearTimeout(resetTimer);
@@ -807,8 +1138,15 @@
             disarmReset();
             states = { ...DEFAULTS };
             preferredQuality = QUALITY_DEFAULT;
-            pendingUserChanges.clear();
-            pendingQuality = null;
+            if (fallbackActive) {
+                // Reset is an explicit override of every stored key; keep the
+                // intent so the late real read cannot restore old values.
+                for (const feature of FEATURES) pendingUserChanges.add(feature.key);
+                pendingQuality = QUALITY_DEFAULT;
+            } else {
+                pendingUserChanges.clear();
+                pendingQuality = null;
+            }
             persistAll();
             refreshAll();
             applySearchFilter();
@@ -822,11 +1160,41 @@
         disableAllButton.addEventListener('click', () => setAllEnabled(false));
     }
 
-    function clearSearch() {
+    function setMonkMode(on) {
+        if (!loaded) return;
+        // Entering the mode never touches the stored toggles: content.js
+        // layers the preset over them, so exiting restores the exact setup.
+        if (!!states['monk_mode'] === !!on) {
+            refreshAll();
+            applySearchFilter();
+            return;
+        }
+        states['monk_mode'] = !!on;
+        if (!loaded || fallbackActive) {
+            pendingUserChanges.add('monk_mode');
+            if (loaded) {
+                refreshAll();
+                applySearchFilter();
+            }
+            return;
+        }
+        persist();
+        refreshAll();
+        applySearchFilter();
+    }
+
+    if (monkButton) {
+        monkButton.addEventListener('click', () => setMonkMode(!isMonkOn()));
+    }
+
+    function clearSearch(restoreFocus) {
         if (!searchInput) return;
         searchInput.value = '';
         applySearchFilter();
-        searchInput.focus();
+        // Only steal focus back when the user was already in the search box
+        // (or activated its clear button). Esc from a toggle must not yank
+        // focus away from the control being operated.
+        if (restoreFocus !== false) searchInput.focus();
     }
 
     if (searchInput) {
@@ -836,20 +1204,30 @@
                 // Let empty-Escape close the popup; only hijack to clear text.
                 if (!currentQuery()) return;
                 e.preventDefault();
-                clearSearch();
+                clearSearch(true);
             }
         });
     }
+    // Esc clears a live query even after focus moved to a toggle. With no
+    // query it is left alone so Chrome can close the popup.
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape' || e.target === searchInput) return;
+        if (!currentQuery()) return;
+        e.preventDefault();
+        clearSearch(false);
+    });
     if (searchClear) {
-        searchClear.addEventListener('click', clearSearch);
+        searchClear.addEventListener('click', () => clearSearch(true));
     }
     if (noResultsClear) {
-        noResultsClear.addEventListener('click', clearSearch);
+        noResultsClear.addEventListener('click', () => clearSearch(true));
     }
 
     function normalizeTag(tag) {
         if (typeof tag !== 'string') return '';
-        return tag.trim().replace(/^v/i, '');
+        // Drop a leading v and any prerelease/build suffix: 10.6.0-rc1 and
+        // 10.6.0 compare as the same numeric version.
+        return tag.trim().replace(/^v/i, '').split(/[-+]/, 1)[0];
     }
 
     function compareVersions(a, b) {
@@ -882,6 +1260,18 @@
         return '';
     }
 
+    function isSafeUpdateUrl(value) {
+        if (typeof value !== 'string') return false;
+        try {
+            const url = new URL(value);
+            if (url.protocol !== 'https:') return false;
+            if (url.hostname !== 'github.com' && url.hostname !== 'www.github.com') return false;
+            return url.pathname.indexOf('/JasonXiao127/YT-Declutter/') === 0;
+        } catch (err) {
+            return false;
+        }
+    }
+
     function renderVersion(current, cached) {
         try {
             if (!versionLabel && !updateStatus) return;
@@ -900,9 +1290,7 @@
                 return;
             }
             const a = document.createElement('a');
-            a.href = (cached.url && typeof cached.url === 'string' && cached.url.indexOf('http') === 0)
-                ? cached.url
-                : RELEASES_PAGE_URL;
+            a.href = isSafeUpdateUrl(cached.url) ? cached.url : RELEASES_PAGE_URL;
             a.target = '_blank';
             a.rel = 'noopener noreferrer';
             a.className = 'update-available';
@@ -945,14 +1333,20 @@
                 }
             } catch (err) { finish(null); }
         }).then((cached) => {
-            if (cached && typeof cached === 'object' && typeof cached.latest === 'string') return cached;
+            if (cached && typeof cached === 'object' &&
+                (typeof cached.latest === 'string' || cached.failed === true)) return cached;
             return null;
         });
     }
 
     function writeUpdateCache(entry) {
         const api = getApi();
-        const payload = { ts: Date.now(), latest: entry.latest, url: entry.url };
+        const payload = {
+            ts: Date.now(),
+            latest: (entry && typeof entry.latest === 'string') ? entry.latest : null,
+            url: (entry && typeof entry.url === 'string') ? entry.url : null
+        };
+        if (entry && entry.failed) payload.failed = true;
         try {
             if (api) {
                 const result = api.storage.local.set({ [UPDATE_CACHE_KEY]: payload });
@@ -963,27 +1357,49 @@
         } catch (err) { /* cache is best-effort */ }
     }
 
+    // Version-less failures (offline on first run) retry after a short
+    // window instead of suppressing update checks for a full day with
+    // nothing to show for it.
+    const UPDATE_FAIL_RETRY_MS = 60 * 60 * 1000;
+
     function isCacheFresh(cached) {
-        return !!(cached && typeof cached.ts === 'number' && (Date.now() - cached.ts) < UPDATE_CACHE_TTL_MS);
+        if (!cached || typeof cached.ts !== 'number') return false;
+        const age = Date.now() - cached.ts;
+        if (age < 0) return false; // clock skew must not stay fresh forever
+        if (cached.failed === true && !cached.latest) return age < UPDATE_FAIL_RETRY_MS;
+        return age < UPDATE_CACHE_TTL_MS;
     }
 
     function fetchLatestRelease() {
         if (typeof fetch !== 'function') return Promise.resolve(null);
-        return fetch(UPDATE_API_URL, { headers: { Accept: 'application/vnd.github+json' } })
+        // Bound the network wait: a hanging captive-portal/VPN request must
+        // not dangle forever. Treat timeout the same as any other failure.
+        let timer = null;
+        let signal = undefined;
+        try {
+            if (typeof AbortController === 'function') {
+                const controller = new AbortController();
+                signal = controller.signal;
+                timer = setTimeout(() => { try { controller.abort(); } catch (err) { /* ignore */ } }, 10000);
+            }
+        } catch (err) { /* ignore */ }
+        const clearTimer = () => { try { if (timer) clearTimeout(timer); } catch (err) { /* ignore */ } };
+        return fetch(UPDATE_API_URL, { headers: { Accept: 'application/vnd.github+json' }, signal })
             .then((res) => {
                 if (!res || !res.ok) return null;
                 return res.json();
             })
             .then((data) => {
+                clearTimer();
                 if (!data || typeof data.tag_name !== 'string') return null;
                 const latest = normalizeTag(data.tag_name);
                 if (!latest) return null;
-                const url = typeof data.html_url === 'string' && data.html_url.indexOf('http') === 0
+                const url = isSafeUpdateUrl(data.html_url)
                     ? data.html_url
                     : RELEASES_PAGE_URL;
                 return { latest, url };
             })
-            .catch(() => null);
+            .catch(() => { clearTimer(); return null; });
     }
 
     function maybeCheckForUpdates() {
@@ -994,14 +1410,18 @@
         readUpdateCache().then((cached) => {
             if (settled) return;
             settled = true;
-            if (cached && cached.latest) {
-                renderVersion(current, cached);
-                if (isCacheFresh(cached) && !isNewerVersion(cached.latest, current)) return;
-                if (isCacheFresh(cached) && isNewerVersion(cached.latest, current)) return;
-            }
+            if (cached && cached.latest) renderVersion(current, cached);
+            // A fresh success or a fresh failure both suppress the fetch:
+            // failures are cached for the same window so a popup cannot
+            // hammer a rate-limited or offline API on every open.
+            if (isCacheFresh(cached)) return;
             fetchLatestRelease().then((fresh) => {
                 if (!fresh) {
-                    // Offline / rate-limited / denied: keep showing just the version.
+                    writeUpdateCache({
+                        latest: (cached && cached.latest) ? cached.latest : null,
+                        url: (cached && cached.url) ? cached.url : null,
+                        failed: true
+                    });
                     if (cached && cached.latest) renderVersion(current, cached);
                     else renderVersion(current, null);
                     return;
@@ -1019,10 +1439,17 @@
             RELEASES_PAGE_URL,
             UPDATE_CACHE_KEY,
             UPDATE_CACHE_TTL_MS,
+            UPDATE_FAIL_RETRY_MS,
             normalizeTag,
             compareVersions,
-            isNewerVersion
+            isNewerVersion,
+            isSafeUpdateUrl,
+            isCacheFresh
         };
+    } catch (err) { /* ignore */ }
+
+    try {
+        globalThis.YT_DCLTR_POPUP = { isOptIn, fallbackScopeKeys, mergePersistAction, toggleFeatures, resolveEffective, effectiveIsOn, isMonkOn };
     } catch (err) { /* ignore */ }
 
     try {

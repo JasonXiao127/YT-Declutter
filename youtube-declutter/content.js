@@ -25,6 +25,34 @@
             feature.key,
             feature.behavior ? !!feature.defaultEnabled : feature.defaultHidden !== false
         ]));
+    const MONK_FEATURE = FEATURES.find((f) => f && f.mode === true) || null;
+    const MONK_PRESET = (MONK_FEATURE && MONK_FEATURE.preset && typeof MONK_FEATURE.preset === 'object')
+        ? MONK_FEATURE.preset
+        : {};
+
+    // Monk Mode is a layer over the saved toggles: while it is on, the
+    // preset forces a fixed set of values. Exiting restores the exact
+    // previous setup because the stored states are never overwritten.
+    function isMonkActive() {
+        try {
+            return !!cachedStates['monk_mode'];
+        } catch (err) {
+            return false;
+        }
+    }
+
+    function effectiveStates() {
+        try {
+            if (!cachedStates || !cachedStates['monk_mode']) return cachedStates;
+            const eff = { ...cachedStates };
+            for (const key of Object.keys(MONK_PRESET)) {
+                if (isSafeKey(key)) eff[key] = !!MONK_PRESET[key];
+            }
+            return eff;
+        } catch (err) {
+            return cachedStates;
+        }
+    }
 
     function getStorageArea() {
         try {
@@ -138,6 +166,7 @@
             }
         } catch (err) { /* document unavailable */ }
         pauseHiddenShortsVideos(states);
+        syncShortsPauseObserver();
     }
 
     // display:none does not pause media: a CSS-hidden Shorts player keeps
@@ -179,7 +208,122 @@
     const ORIGINAL_HREF_ATTR = 'data-dcltr-original-href';
 
     function isShortsBehaviorEnabled() {
-        return !!cachedStates[SHORTS_BEHAVIOR_KEY];
+        try {
+            return !!effectiveStates()[SHORTS_BEHAVIOR_KEY];
+        } catch (err) {
+            return false;
+        }
+    }
+
+    function isHomeToSubsEnabled() {
+        try {
+            return !!effectiveStates()['home_to_subs'];
+        } catch (err) {
+            return false;
+        }
+    }
+
+    function isAutoplayOffEnabled() {
+        try {
+            return !!effectiveStates()['autoplay_off'];
+        } catch (err) {
+            return false;
+        }
+    }
+
+    // Opening youtube.com/ lands on the Subscriptions feed instead.
+    // replace() keeps the homepage out of history so Back never loops.
+    function maybeRedirectHome() {
+        if (!isHomeToSubsEnabled()) return;
+        try {
+            const path = location.pathname;
+            if (path === '/' || path === '') {
+                location.replace('/feed/subscriptions');
+            }
+        } catch (err) { /* ignore */ }
+    }
+
+    // Autoplay lives on the outer player button: clicking the inner
+    // .ytp-autonav-toggle-button div does nothing, the outer
+    // button.ytp-autonav-toggle flips aria-checked on the inner div.
+    const AUTOPLAY_RESTORE_KEY = 'dcltr-monk-autoplay-was-on';
+
+    function autoplayOuterButton() {
+        try {
+            return document.querySelector('button.ytp-autonav-toggle');
+        } catch (err) {
+            return null;
+        }
+    }
+
+    function autoplayCheckedState() {
+        try {
+            const inner = document.querySelector('.ytp-autonav-toggle-button');
+            return inner ? inner.getAttribute('aria-checked') : null;
+        } catch (err) {
+            return null;
+        }
+    }
+
+    function noteAutoplayWasOn() {
+        try {
+            if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(AUTOPLAY_RESTORE_KEY, '1');
+        } catch (err) { /* ignore */ }
+    }
+
+    function autoplayRestorePending() {
+        try {
+            return typeof sessionStorage !== 'undefined' && sessionStorage.getItem(AUTOPLAY_RESTORE_KEY) === '1';
+        } catch (err) {
+            return false;
+        }
+    }
+
+    function clearAutoplayRestore() {
+        try {
+            if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(AUTOPLAY_RESTORE_KEY);
+        } catch (err) { /* ignore */ }
+    }
+
+    function ensureAutoplayOff() {
+        if (!isAutoplayOffEnabled()) return;
+        try {
+            if (!location.pathname.startsWith('/watch')) return;
+            const btn = autoplayOuterButton();
+            if (!btn || typeof btn.click !== 'function') return;
+            if (autoplayCheckedState() === 'true') {
+                noteAutoplayWasOn();
+                btn.click();
+            }
+        } catch (err) { /* ignore */ }
+    }
+
+    function maybeRestoreAutoplay() {
+        if (isAutoplayOffEnabled()) return;
+        if (!autoplayRestorePending()) return;
+        try {
+            if (!location.pathname.startsWith('/watch')) return;
+            if (autoplayCheckedState() !== 'false') {
+                clearAutoplayRestore();
+                return;
+            }
+            const btn = autoplayOuterButton();
+            if (!btn || typeof btn.click !== 'function') return;
+            btn.click();
+            clearAutoplayRestore();
+        } catch (err) { /* ignore */ }
+    }
+
+    function syncAutoplay() {
+        try {
+            if (isAutoplayOffEnabled()) ensureAutoplayOff();
+            else maybeRestoreAutoplay();
+        } catch (err) { /* ignore */ }
+    }
+
+    function syncMonkBehaviors() {
+        maybeRedirectHome();
+        syncAutoplay();
     }
 
     // YouTube video IDs are 11 base64url chars. Requiring the full
@@ -360,6 +504,72 @@
     let pendingRewriteNodes = [];
     let rewriteScheduled = false;
     let fullRescanNeeded = false;
+    // Independent of the rewrite observer below: pauses newly appended
+    // hidden Shorts players even when link rewriting is off (infinite
+    // scroll appends shelves without any navigation event).
+    let shortsPauseObserver = null;
+
+    function pauseNewShortsVideos(root) {
+        try {
+            const eff = effectiveStates();
+            if (!eff || !eff['shorts']) return;
+            if (!root || root.nodeType !== 1) return;
+            if (typeof root.tagName === 'string' && root.tagName.toLowerCase() === 'video') {
+                try {
+                    const host = root.closest ? root.closest('ytd-shorts, ytd-reel-video-renderer') : null;
+                    if (host && !root.paused && typeof root.pause === 'function') root.pause();
+                } catch (err) { /* per-video */ }
+                return;
+            }
+            const vids = root.querySelectorAll
+                ? root.querySelectorAll('ytd-shorts video, ytd-reel-video-renderer video')
+                : [];
+            for (const v of vids) {
+                try {
+                    if (v && !v.paused && typeof v.pause === 'function') v.pause();
+                } catch (err) { /* per-video */ }
+            }
+        } catch (err) { /* ignore */ }
+    }
+
+    function startShortsPauseObserver() {
+        if (shortsPauseObserver) return;
+        try {
+            const root = document.documentElement;
+            if (!root) return;
+            shortsPauseObserver = new MutationObserver((mutations) => {
+                try {
+                    if (!cachedStates || !cachedStates['shorts']) return;
+                    for (const mutation of mutations) {
+                        if (!mutation.addedNodes || mutation.addedNodes.length === 0) continue;
+                        for (const node of mutation.addedNodes) {
+                            pauseNewShortsVideos(node);
+                        }
+                    }
+                } catch (err) { /* ignore */ }
+            });
+            shortsPauseObserver.observe(root, { childList: true, subtree: true });
+        } catch (err) {
+            shortsPauseObserver = null;
+        }
+    }
+
+    function stopShortsPauseObserver() {
+        try {
+            if (shortsPauseObserver) {
+                shortsPauseObserver.disconnect();
+                shortsPauseObserver = null;
+            }
+        } catch (err) { /* ignore */ }
+    }
+
+    function syncShortsPauseObserver() {
+        try {
+            const eff = effectiveStates();
+            if (eff && eff['shorts']) startShortsPauseObserver();
+            else stopShortsPauseObserver();
+        } catch (err) { /* ignore */ }
+    }
 
     function flushPendingRewrites() {
         rewriteScheduled = false;
@@ -388,7 +598,7 @@
         // Newly added Shorts players arrive hidden (CSS) but keep playing
         // audio: pause them whenever hiding is on.
         try {
-            if (cachedStates['shorts']) pauseHiddenShortsVideos(cachedStates);
+            if (effectiveStates()['shorts']) pauseHiddenShortsVideos(effectiveStates());
         } catch (err) { /* ignore */ }
         if (pendingRewriteNodes.length > 0) {
             // More work remains: schedule a follow-up flush.
@@ -443,7 +653,7 @@
             scanAndRewrite(document);
         }
         try {
-            if (cachedStates['shorts']) pauseHiddenShortsVideos(cachedStates);
+            if (effectiveStates()['shorts']) pauseHiddenShortsVideos(effectiveStates());
         } catch (err) { /* ignore */ }
     }
 
@@ -512,6 +722,10 @@
 
     function handleNavEvent() {
         checkUrlChange();
+        try {
+            applyHiding(effectiveStates());
+        } catch (err) { /* ignore */ }
+        syncMonkBehaviors();
     }
 
     document.addEventListener('click', onCaptureClick, true);
@@ -536,11 +750,22 @@
 
     // Apply defaults synchronously so first paint does not hide
     // opt-out features (e.g. logo) before storage loads.
-    applyHiding(cachedStates);
+    applyHiding(effectiveStates());
     syncShortsBehavior();
+    syncMonkBehaviors();
+    // YouTube re-enables autoplay on its own; poll while the mode wants it
+    // off. Cheap (one query per tick) and a no-op when the mode is off.
+    try {
+        setInterval(syncAutoplay, 1000);
+    } catch (err) { /* ignore */ }
 
     for (const eventName of NAV_EVENTS) {
-        document.addEventListener(eventName, () => applyHiding(cachedStates));
+        document.addEventListener(eventName, () => {
+            try {
+                applyHiding(effectiveStates());
+            } catch (err) { /* ignore */ }
+            syncMonkBehaviors();
+        });
     }
 
     const storageArea = getStorageArea();
@@ -551,6 +776,12 @@
         // still overwrite it. Never overwritten the other way around.
         let usedFallback = false;
         let safetyTimer = null;
+        let retried = false;
+        let authoritativeSeen = false;
+        // A STATES onChanged carries the newest states value directly, so a
+        // late full read started before it must not clobber it (same race
+        // as the quality key below, but hiding-only).
+        let statesExternalSeen = false;
         const clearSafetyTimer = () => {
             if (safetyTimer !== null) {
                 try { clearTimeout(safetyTimer); } catch (err) { /* ignore */ }
@@ -559,14 +790,36 @@
         };
         const applyData = (data) => {
             if (settled && !usedFallback) return;
+            // A full read started before an external change carries a stale
+            // snapshot for the changed keys. onChanged already applied the
+            // newest values directly, so preserve them here instead of
+            // reverting (e.g. a quality change made while loading).
+            let applyStates = true;
+            let applyQuality = true;
+            try {
+                if (QCORE && typeof QCORE.decideApplyKeys === 'function') {
+                    const decision = QCORE.decideApplyKeys(statesExternalSeen, authoritativeSeen);
+                    if (decision && typeof decision === 'object') {
+                        applyStates = decision.applyStates !== false;
+                        applyQuality = decision.applyQuality !== false;
+                    }
+                } else {
+                    applyStates = !statesExternalSeen;
+                    applyQuality = !authoritativeSeen;
+                }
+            } catch (err) {
+                applyStates = !statesExternalSeen;
+                applyQuality = !authoritativeSeen;
+            }
             settled = true;
             usedFallback = false;
             clearSafetyTimer();
-            cachedStates = sanitize(data && data[STORAGE_KEY]);
-            cachedQuality = sanitizeQuality(data && data[QUALITY_KEY]);
+            if (applyStates) cachedStates = sanitize(data && data[STORAGE_KEY]);
+            if (applyQuality) cachedQuality = sanitizeQuality(data && data[QUALITY_KEY]);
             settingsReady = true;
-            applyHiding(cachedStates);
+            applyHiding(effectiveStates());
             syncShortsBehavior();
+            syncMonkBehaviors();
             postQualitySettings();
         };
         const applyCurrent = () => {
@@ -574,36 +827,72 @@
             settled = true;
             usedFallback = true;
             clearSafetyTimer();
-            settingsReady = true;
-            applyHiding(cachedStates);
+            // Do NOT claim readiness: this is the defaults snapshot. MAIN
+            // must keep waiting instead of enforcing hd1080, and the late
+            // real read may still supersede this with the stored quality.
+            settingsReady = false;
+            applyHiding(effectiveStates());
             syncShortsBehavior();
+            syncMonkBehaviors();
             postQualitySettings();
         };
-        try {
-            const result = storageArea.get([STORAGE_KEY, QUALITY_KEY], (data) => {
-                try {
-                    const api = getExtensionApi();
-                    if (api && api.runtime && api.runtime.lastError) {
-                        applyCurrent();
-                        return;
-                    }
-                } catch (err) { /* ignore */ }
-                applyData(data);
-            });
-            // MV3 promise form: chrome.storage.local.get(key) without callback.
-            if (result && typeof result.then === 'function') {
-                result.then(applyData, applyCurrent);
-            }
-            // Safety net: never stay on defaults forever if storage hangs.
-            safetyTimer = setTimeout(() => { applyCurrent(); }, 2000);
-        } catch (err) {
+        const applyTerminal = () => {
+            if (settled && !usedFallback) return;
+            if (authoritativeSeen || statesExternalSeen) return;
+            settled = true;
+            usedFallback = true;
+            clearSafetyTimer();
+            // Both reads failed and a retry was exhausted: no late payload
+            // is coming. Fall back to defaults rather than leaving quality
+            // unenforced for the life of the tab.
             cachedStates = { ...DEFAULTS };
             cachedQuality = QUALITY_DEFAULT;
             settingsReady = true;
-            applyHiding(cachedStates);
+            applyHiding(effectiveStates());
             syncShortsBehavior();
+            syncMonkBehaviors();
             postQualitySettings();
-        }
+        };
+        const readStorage = () => {
+            try {
+                const result = storageArea.get([STORAGE_KEY, QUALITY_KEY], (data) => {
+                    try {
+                        const api = getExtensionApi();
+                        if (api && api.runtime && api.runtime.lastError) {
+                            if (!retried) {
+                                retried = true;
+                                try { setTimeout(readStorage, 250); } catch (err) { applyTerminal(); }
+                                return;
+                            }
+                            applyTerminal();
+                            return;
+                        }
+                    } catch (err) { /* ignore */ }
+                    applyData(data);
+                });
+                // MV3 promise form: chrome.storage.local.get(key) without callback.
+                if (result && typeof result.then === 'function') {
+                    result.then(applyData, () => {
+                        if (!retried) {
+                            retried = true;
+                            try { setTimeout(readStorage, 250); } catch (err) { applyTerminal(); }
+                            return;
+                        }
+                        applyTerminal();
+                    });
+                }
+            } catch (err) {
+                if (!retried) {
+                    retried = true;
+                    try { setTimeout(readStorage, 250); } catch (retryErr) { applyTerminal(); }
+                    return;
+                }
+                applyTerminal();
+            }
+        };
+        readStorage();
+        // Safety net: never stay on defaults forever if storage hangs.
+        safetyTimer = setTimeout(() => { applyCurrent(); }, 2000);
 
         try {
             const api = getExtensionApi();
@@ -611,11 +900,15 @@
                 api.storage.onChanged.addListener((changes, namespace) => {
                     if (namespace !== 'local') return;
                     let qualityChanged = false;
+                    let qualityAuthoritative = false;
                     if (changes[STORAGE_KEY]) {
                         cachedStates = sanitize(changes[STORAGE_KEY].newValue);
-                        applyHiding(cachedStates);
+                        applyHiding(effectiveStates());
                         syncShortsBehavior();
+                        syncMonkBehaviors();
                         qualityChanged = true;
+                        statesExternalSeen = true;
+                        clearSafetyTimer();
                     }
                     if (changes[QUALITY_KEY]) {
                         cachedQuality = sanitizeQuality(
@@ -623,9 +916,26 @@
                                 ? undefined
                                 : changes[QUALITY_KEY].newValue
                         );
+                        qualityAuthoritative = true;
                         qualityChanged = true;
+                        authoritativeSeen = true;
+                        clearSafetyTimer();
+                        if (!settled) {
+                            // This value is authoritative; stop the 2s
+                            // fallback timer from re-posting ready:false.
+                            // A late full read may still apply.
+                            settled = true;
+                            usedFallback = true;
+                        }
                     }
-                    if (qualityChanged) postQualitySettings();
+                    if (qualityChanged) {
+                        // Only the quality key proves the stored quality. A
+                        // states-only change during a fallback must not latch
+                        // the default 1080p; wait for the quality key or a
+                        // real read instead.
+                        if (qualityAuthoritative) settingsReady = true;
+                        postQualitySettings();
+                    }
                 });
             }
         } catch (err) {

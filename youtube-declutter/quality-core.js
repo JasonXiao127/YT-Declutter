@@ -81,6 +81,40 @@
         return (HEIGHT[normalizeLevel(resolved)] || 0) >= 1080;
     }
 
+    // Live/premiere/archive state from player metadata. Returns true/false
+    // when the response has a definitive boolean, or null when it does not.
+    // Ended streams have isLiveContent === true but no videoDetails.isLive;
+    // their microformat's liveBroadcastDetails.isLiveNow is the authoritative
+    // "is this still live" signal.
+    function liveFromMetadata(videoDetails, microformat) {
+        if (videoDetails && typeof videoDetails.isLive === 'boolean') {
+            return videoDetails.isLive;
+        }
+        var details = microformat && microformat.playerMicroformatRenderer &&
+            microformat.playerMicroformatRenderer.liveBroadcastDetails;
+        if (details && typeof details.isLiveNow === 'boolean') {
+            return details.isLiveNow;
+        }
+        return null;
+    }
+
+    // Pure generation guard for the Premium menu flight (unit-tested):
+    // a flight whose generation no longer matches the current one must
+    // abort before touching the player UI.
+    function isStaleAttempt(attemptGen, currentGen) {
+        return typeof attemptGen === 'number' && attemptGen !== currentGen;
+    }
+
+    // Pure late-read merge decision (unit-tested): keys with a newer
+    // externally delivered value must not be overwritten by a stale full
+    // read started before the change.
+    function decideApplyKeys(statesExternalSeen, qualityAuthoritativeSeen) {
+        return {
+            applyStates: !statesExternalSeen,
+            applyQuality: !qualityAuthoritativeSeen
+        };
+    }
+
     var CORE = {
         QUALITY_DEFAULT: QUALITY_DEFAULT,
         QUALITY_OPTIONS: QUALITY_OPTIONS,
@@ -92,7 +126,10 @@
         normalizeLevel: normalizeLevel,
         resolveTarget: resolveTarget,
         findPremiumLabel: findPremiumLabel,
-        isPremiumCandidate: isPremiumCandidate
+        isPremiumCandidate: isPremiumCandidate,
+        liveFromMetadata: liveFromMetadata,
+        isStaleAttempt: isStaleAttempt,
+        decideApplyKeys: decideApplyKeys
     };
 
     try {

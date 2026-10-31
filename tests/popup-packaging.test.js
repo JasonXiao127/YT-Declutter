@@ -24,11 +24,12 @@ describe('popup quality UI', () => {
   it('select is searchable but excluded from badges and counts', () => {
     assert.ok(popup.includes('premium enhanced bitrate'), 'search must cover premium tokens');
     assert.ok(/data-key.*default_quality/.test(popup), 'select row key present');
-    // Mechanism, not just presence: counts derive from FEATURES only...
-    assert.ok(/FEATURES\.filter\(\(f\) => !!states\[f\.key\]\)/.test(popup), 'header count must be FEATURES-only');
-    assert.ok(/dataset\.keys = groupFeatures\.map/.test(popup), 'group badges must be FEATURES-only');
+    // Mechanism, not just presence: counts derive from toggles only...
+    assert.ok(/TOGGLE_FEATURES\.filter\(/.test(popup), 'header count must be toggle-only');
+    assert.ok(/dataset\.keys = groupFeatures\.map/.test(popup), 'group badges must be toggle-only');
     // ...the select row is never a FEATURES entry and never becomes one.
     assert.ok(!/FEATURES\.push/.test(popup), 'select must never be pushed into FEATURES');
+    assert.ok(!/TOGGLE_FEATURES\.push/.test(popup), 'select must never be pushed into TOGGLE_FEATURES');
     const features = fs.readFileSync(path.join(EXT, 'features.js'), 'utf8');
     assert.ok(!/key:\s*'default_quality'/.test(features), 'default_quality must not be a feature key');
   });

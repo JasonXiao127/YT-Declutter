@@ -1,12 +1,12 @@
 {
   "name": "youtube-declutter-dev",
   "private": true,
-  "version": "10.5.0",
+  "version": "10.7.0",
   "description": "Dev-only tooling for the YouTube Declutter extension (tests + packaging). Never shipped in the extension.",
   "scripts": {
     "test": "node --test \"tests/*.test.js\"",
     "package": "node scripts/package.js",
-    "package:zip": "npm run package && cd dist && zip -X -o -r ../yt-declutter-$npm_package_version.zip . && cd .. && echo \"wrote yt-declutter-$npm_package_version.zip (deterministic: zip -X -o)\""
+    "package:zip": "npm run package && cd dist && find . -type f -exec touch -t 198001010000 {} + && rm -f ../yt-declutter-$npm_package_version.zip && find . -type f | LC_ALL=C sort | zip -X -q ../yt-declutter-$npm_package_version.zip -@ && cd .. && echo \"wrote yt-declutter-$npm_package_version.zip (deterministic: sorted entries, fixed mtimes)\""
   },
   "license": "GPL-3.0-or-later"
 }

@@ -19,10 +19,18 @@
                 <button type="button" id="search-clear" class="search-clear" aria-label="Clear search" hidden>&times;</button>
             </div>
         </header>
+        <section class="monk-card" id="monk-card" aria-label="Monk Mode">
+            <div class="monk-text">
+                <span class="monk-title">Monk Mode</span>
+                <span class="monk-desc">Only search, subscriptions, and your channels. No feed, Shorts, recommendations, comments, or autoplay.</span>
+                <span class="monk-status" id="monk-status" aria-live="polite"></span>
+            </div>
+            <button type="button" id="monk-button" class="monk-button" aria-pressed="false">Enter Monk Mode</button>
+        </section>
         <div class="toggle-list" id="toggle-list"></div>
         <p class="no-results" id="no-results" hidden role="status">No matching settings. <button type="button" id="no-results-clear" class="link-button">Clear search</button></p>
         <footer class="footer-actions">
-            <button type="button" id="enable-all" class="action-button" title="Turns everything on — also hides the logo (removes home link) and opens Shorts as regular videos" aria-label="Enable all (also hides the logo and opens Shorts as regular videos)">Enable all</button>
+            <button type="button" id="enable-all" class="action-button" title="Turns on every default-on toggle. The 11 opt-in toggles are not turned on; Monk Mode is never turned on in bulk" aria-label="Enable all default-on toggles; opt-in toggles and Monk Mode are not turned on">Enable all</button>
             <button type="button" id="disable-all" class="action-button" title="Turns everything off — restores YouTube to normal">Disable all</button>
             <button type="button" id="reset-button" class="reset-button" aria-live="polite">Reset to Defaults</button>
         </footer>

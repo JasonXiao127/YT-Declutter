@@ -33,13 +33,20 @@ function copyDir(rel) {
   const to = path.join(DIST, rel);
   fs.mkdirSync(to, { recursive: true });
   for (const entry of fs.readdirSync(from, { withFileTypes: true })) {
+    // Never follow symlinks out of the shippable tree: a link could pull
+    // arbitrary target bytes (or loop) into dist/.
+    if (entry.isSymbolicLink()) {
+      throw new Error(`symlink not allowed in shippable tree: ${path.join(rel, entry.name)}`);
+    }
     if (entry.isDirectory()) {
       copyDir(path.join(rel, entry.name));
-    } else {
+    } else if (entry.isFile()) {
       // Skip OS strays (e.g. .DS_Store, Thumbs.db); icons are PNG-only.
       if (entry.name.startsWith('.') || entry.name === 'Thumbs.db') continue;
       if (rel === 'icons' && !/\.png$/i.test(entry.name)) continue;
       copyFile(path.join(rel, entry.name));
+    } else {
+      throw new Error(`unexpected entry in shippable tree: ${path.join(rel, entry.name)}`);
     }
   }
 }
@@ -81,7 +88,7 @@ function main() {
   for (const f of FILES) copyFile(f);
   for (const d of DIRS) copyDir(d);
   console.log(`dist/ written with ${FILES.length} files + ${DIRS.join(', ')}`);
-  console.log('Zip deterministically with: npm run package:zip  (zip -X -o strips extra fields, sorts by name)');
+  console.log('Zip deterministically with: npm run package:zip  (sorted file list, fixed mtimes, zip -X)');
 }
 
 main();

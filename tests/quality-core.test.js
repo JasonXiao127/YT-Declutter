@@ -134,3 +134,34 @@ describe('isPremiumCandidate', () => {
     assert.equal(core.findPremiumLabel(qd, 'hd1080'), '1080p Premium');
   });
 });
+
+describe('liveFromMetadata', () => {
+  const archiveMicro = {
+    playerMicroformatRenderer: {
+      liveBroadcastDetails: { isLiveNow: false }
+    }
+  };
+
+  it('trusts videoDetails.isLive when it is present', () => {
+    assert.equal(core.liveFromMetadata({ isLive: true }, null), true);
+    assert.equal(core.liveFromMetadata({ isLive: false }, archiveMicro), false);
+  });
+
+  it('reads the archive microformat when videoDetails.isLive is absent', () => {
+    // An ended stream: isLiveContent is true, but the ended microformat wins.
+    assert.equal(core.liveFromMetadata({ isLiveContent: true }, archiveMicro), false);
+    assert.equal(
+      core.liveFromMetadata(
+        { isLiveContent: true },
+        { playerMicroformatRenderer: { liveBroadcastDetails: { isLiveNow: true } } }
+      ),
+      true
+    );
+  });
+
+  it('returns null when neither source answers', () => {
+    assert.equal(core.liveFromMetadata({}, null), null);
+    assert.equal(core.liveFromMetadata(null, {}), null);
+    assert.equal(core.liveFromMetadata({ isLiveContent: true }, { playerMicroformatRenderer: {} }), null);
+  });
+});

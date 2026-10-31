@@ -56,6 +56,8 @@
     var gen = 0;
     var enforcedGen = -1;
     var lastVideoId = null;
+    var initialized = false;
+    var manualQualityGen = -1;
     var pollTimer = null;
     var ticks = 0;
     var adTicks = 0;
@@ -144,24 +146,47 @@
         return false;
     }
 
+    function liveFromMetadata(videoDetails, microformat) {
+        if (QCORE && typeof QCORE.liveFromMetadata === 'function') {
+            try {
+                return QCORE.liveFromMetadata(videoDetails, microformat);
+            } catch (err) { /* fall through */ }
+        }
+        if (videoDetails && typeof videoDetails.isLive === 'boolean') {
+            return videoDetails.isLive;
+        }
+        var details = microformat && microformat.playerMicroformatRenderer &&
+            microformat.playerMicroformatRenderer.liveBroadcastDetails;
+        if (details && typeof details.isLiveNow === 'boolean') return details.isLiveNow;
+        return null;
+    }
+
     function isLive(player) {
+        var known = null;
         try {
             if (player && typeof player.getVideoData === 'function') {
                 var data = player.getVideoData();
-                if (data && data.isLive === true) return true;
+                if (data && typeof data.isLive === 'boolean') known = data.isLive;
             }
         } catch (err) { /* ignore */ }
+        // If the player API answered, trust it. The URL fallback below is
+        // only for players that expose no boolean at all; otherwise a
+        // finished stream that still lives at /live/<id> would be skipped.
+        if (known !== null) return known;
         try {
             if (player && typeof player.getPlayerResponse === 'function') {
                 var resp = player.getPlayerResponse();
-                var details = resp && resp.videoDetails;
-                if (details && (details.isLive === true || details.isLiveContent === true)) return true;
+                if (resp) {
+                    var state = liveFromMetadata(resp.videoDetails, resp.microformat);
+                    if (typeof state === 'boolean') return state;
+                }
             }
         } catch (err) { /* ignore */ }
         try {
-            if ((location.pathname || '').indexOf('/live/') === 0) return true;
-        } catch (err) { /* ignore */ }
-        return false;
+            return (location.pathname || '').indexOf('/live/') === 0;
+        } catch (err) {
+            return false;
+        }
     }
 
     function getQualityData(player) {
@@ -271,31 +296,76 @@
         return false;
     }
 
-    function tryPremiumMenuClick(premiumLabel, targetHeight) {
+    function tryPremiumMenuClick(premiumLabel, targetHeight, qualityData, attemptGen) {
+        function flightStale() {
+            if (QCORE && typeof QCORE.isStaleAttempt === 'function') {
+                try {
+                    return QCORE.isStaleAttempt(attemptGen, gen);
+                } catch (err) { /* fall through */ }
+            }
+            return typeof attemptGen === 'number' && attemptGen !== gen;
+        }
+        function closeMenuIfOpen() {
+            try {
+                if (isMenuOpen()) {
+                    var closeBtn = document.querySelector('.ytp-settings-button');
+                    if (closeBtn) closeBtn.click();
+                }
+            } catch (err) { /* ignore */ }
+        }
         try {
+            if (flightStale()) return Promise.resolve(false);
+            // Never hijack a menu the user already has open: our first
+            // click would close it instead of opening the settings.
+            if (isMenuOpen()) return Promise.resolve(false);
             var btn = document.querySelector('.ytp-settings-button');
             if (!btn) return Promise.resolve(false);
+            if (flightStale()) return Promise.resolve(false);
             btn.click();
             return sleep(180).then(function () {
-                // Open the Quality submenu.
+                if (flightStale()) { closeMenuIfOpen(); return false; }
+                // Open the Quality submenu. YouTube translates the label, so
+                // find it by its value: the quality item's content is a
+                // resolution ("1080p", "Auto (1080p)"), while Speed/Subtitles
+                // show words. English text stays as a last-resort fallback.
                 var qualityOpened = false;
                 try {
-                    var labels = document.querySelectorAll('.ytp-menuitem-label');
-                    for (var i = 0; i < labels.length; i++) {
-                        if (/quality/i.test(labels[i].textContent || '')) {
-                            var item = labels[i].closest ? labels[i].closest('.ytp-menuitem') : null;
-                            (item || labels[i]).click();
+                    var items = document.querySelectorAll('.ytp-menuitem');
+                    var qualityWords = [];
+                    if (Array.isArray(qualityData)) {
+                        for (var qi = 0; qi < qualityData.length; qi++) {
+                            var ql = qualityData[qi] && qualityData[qi].qualityLabel;
+                            if (typeof ql === 'string') {
+                                qualityWords.push(ql.split(/[ (]/)[0].toLowerCase());
+                            }
+                        }
+                    }
+                    for (var i = 0; i < items.length; i++) {
+                        var item = items[i];
+                        var labelEl = item.querySelector ? item.querySelector('.ytp-menuitem-label') : null;
+                        var contentEl = item.querySelector ? item.querySelector('.ytp-menuitem-content') : null;
+                        var label = labelEl ? (labelEl.textContent || '') : '';
+                        var content = contentEl ? (contentEl.textContent || '').trim().toLowerCase() : '';
+                        var looksLikeQuality = /\d{3,4}p/.test(content) ||
+                            qualityWords.some(function (word) {
+                                return word && content.indexOf(word) !== -1;
+                            });
+                        if (looksLikeQuality || /quality/i.test(label)) {
+                            if (flightStale()) { closeMenuIfOpen(); return false; }
+                            item.click();
                             qualityOpened = true;
                             break;
                         }
                     }
                 } catch (err) { /* ignore */ }
+                if (flightStale()) { closeMenuIfOpen(); return false; }
                 if (!qualityOpened) {
                     // Blind toggle shut, then verify: if YouTube left the
                     // menu open (or our first click never opened it and the
                     // second click opened it), close again / dismiss.
                     try { btn.click(); } catch (e) { /* ignore */ }
                     return sleep(120).then(function () {
+                        if (flightStale()) { closeMenuIfOpen(); return false; }
                         try {
                             if (isMenuOpen()) {
                                 try { btn.click(); } catch (e2) { /* ignore */ }
@@ -305,12 +375,14 @@
                     });
                 }
                 return sleep(220).then(function () {
+                    if (flightStale()) { closeMenuIfOpen(); return false; }
                     var picked = clickMenuItemByText(document, premiumLabel, true);
                     if (!picked && targetHeight) {
                         // Fallback: row containing both height and Premium.
                         try {
                             var items = document.querySelectorAll('.ytp-menuitem');
                             for (var k = 0; k < items.length; k++) {
+                                if (flightStale()) { closeMenuIfOpen(); return false; }
                                 var t = items[k].textContent || '';
                                 if (t.indexOf(String(targetHeight)) !== -1 && PREMIUM_RE.test(t)) {
                                     items[k].click();
@@ -321,6 +393,7 @@
                         } catch (err) { /* ignore */ }
                     }
                     return sleep(120).then(function () {
+                        if (flightStale()) { closeMenuIfOpen(); return false; }
                         // Close any leftover menu.
                         try {
                             if (isMenuOpen()) btn.click();
@@ -334,12 +407,27 @@
         }
     }
 
+    function getPlayerVideoId(player) {
+        try {
+            if (player && typeof player.getVideoData === 'function') {
+                var data = player.getVideoData();
+                if (data && typeof data.video_id === 'string' && data.video_id) {
+                    return data.video_id;
+                }
+            }
+        } catch (err) { /* ignore */ }
+        return null;
+    }
+
     function attemptEnforce() {
         if (!cached.known) {
             requestSettings();
             return 'wait';
         }
         if (!cached.enabled) return 'done';
+        // A real user quality choice on this generation wins over automatic
+        // enforcement, including a window that is already polling.
+        if (manualQualityGen === gen) return 'done';
         if (!isWatchOrEmbed()) return 'done';
         var player = getPlayer();
         if (!player) return 'wait';
@@ -349,15 +437,23 @@
             return 'wait';
         }
         if (isAd(player)) return 'wait-ad'; // skip tick, keep polling until ad ends
-        if (isLive(player)) return 'done'; // live has no fixed ladder; don't fight ABR
         // Signal-independent ad/stale guard: during ads (or a stale player
         // mid-navigation) the player's video id differs from the URL id.
         // Waiting here is the safe default if ad classes/flags get renamed.
+        // Run this before isLive(): stale live metadata must not stamp a new
+        // generation as "done". Use the player-reported id, not getVideoId's
+        // URL fallback, so an unready player cannot masquerade as the URL id.
         try {
-            var pid = getVideoId(player);
+            var pid = getPlayerVideoId(player);
             var expected = getExpectedId();
             if (pid && expected && pid !== expected) return 'wait-ad';
+            if (player && typeof player.getPlayerResponse === 'function') {
+                var response = player.getPlayerResponse();
+                var responseId = response && response.videoDetails && response.videoDetails.videoId;
+                if (responseId && expected && responseId !== expected) return 'wait-ad';
+            }
         } catch (err) { /* ignore; fall through to level checks */ }
+        if (isLive(player)) return 'live'; // live has no fixed ladder; don't fight ABR
         var levels;
         try {
             levels = player.getAvailableQualityLevels();
@@ -393,14 +489,27 @@
                     var attemptPlayer = player;
                     var attemptVideoId = getVideoId(player);
                     var attemptResolved = resolved;
-                    tryPremiumMenuClick(premiumLabel, HEIGHT[normalizeLevel(resolved)] || 0).then(function (picked) {
+                    tryPremiumMenuClick(premiumLabel, HEIGHT[normalizeLevel(resolved)] || 0, qualityData, attemptGen).then(function (picked) {
                         // Stale flight (navigated mid-menu): never stamp or
-                        // stop the NEW generation's window.
+                        // stop the NEW generation's window. The in-flight
+                        // helper already aborts before further clicks and
+                        // closes any menu it opened; still ensure no menu is
+                        // left behind on the new video's player.
                         if (attemptGen !== gen) {
                             if (premiumPendingGen === attemptGen) premiumPendingGen = -1;
+                            try {
+                                if (isMenuOpen()) {
+                                    var staleBtn = document.querySelector('.ytp-settings-button');
+                                    if (staleBtn) staleBtn.click();
+                                }
+                            } catch (err) { /* ignore */ }
                             return;
                         }
                         if (premiumPendingGen === gen) premiumPendingGen = -1;
+                        if (!cached.enabled || manualQualityGen === gen) {
+                            stopPoll();
+                            return;
+                        }
                         // Re-resolve the player: YouTube may have swapped the
                         // player element mid-menu without bumping the video id.
                         var freshPlayer = getPlayer() || attemptPlayer;
@@ -423,9 +532,19 @@
                         // Rejection === menu failure: same single API fallback.
                         if (attemptGen !== gen) {
                             if (premiumPendingGen === attemptGen) premiumPendingGen = -1;
+                            try {
+                                if (isMenuOpen()) {
+                                    var staleBtn2 = document.querySelector('.ytp-settings-button');
+                                    if (staleBtn2) staleBtn2.click();
+                                }
+                            } catch (err) { /* ignore */ }
                             return;
                         }
                         if (premiumPendingGen === gen) premiumPendingGen = -1;
+                        if (!cached.enabled || manualQualityGen === gen) {
+                            stopPoll();
+                            return;
+                        }
                         var freshPlayer2 = getPlayer() || attemptPlayer;
                         try {
                             if (attemptVideoId && getVideoId(freshPlayer2) !== attemptVideoId) freshPlayer2 = attemptPlayer;
@@ -469,6 +588,10 @@
         if (outcome === 'done') {
             enforcedGen = gen;
             stopPoll();
+        } else if (outcome === 'live') {
+            // Live: stop this window but do not stamp enforcedGen, so an
+            // ended stream can reopen enforcement in place.
+            stopPoll();
         } else if (outcome === 'wait-ad') {
             // Ads/transitions: extended budget, don't burn the normal window.
             adTicks++;
@@ -486,6 +609,9 @@
 
     function startWindow() {
         if (!isWatchOrEmbed()) return;
+        // A real user quality choice on this generation wins over any
+        // automatic recovery, including ad-budget expiry.
+        if (manualQualityGen === gen) return;
         if (enforcedGen === gen) return; // already enforced for this navigation
         stopPoll();
         ticks = 0;
@@ -497,6 +623,7 @@
                 enforcedGen = gen;
                 return;
             }
+            if (first === 'live') return;
         } catch (err) { /* ignore */ }
         pollTimer = setInterval(pollTick, POLL_MS);
     }
@@ -505,6 +632,7 @@
         // Same-video spurious events (yt-navigate duplicates, loadstart with
         // null/unready player id): never reset the tick budgets, only make
         // sure a pending window keeps polling.
+        if (manualQualityGen === gen) return;
         if (pollTimer !== null) return;
         if (enforcedGen === gen) return;
         startWindow();
@@ -549,19 +677,44 @@
                 cached.known = false;
                 return;
             }
+            var wasKnown = cached.known;
+            var wasEnabled = cached.enabled;
             cached.enabled = data.enabled !== false;
             cached.quality = sanitizeQuality(data.quality);
             cached.premium = data.premium === true;
             cached.known = true;
+            // An explicit off->on toggle is a user action: apply it to the
+            // current video instead of waiting for the next navigation.
+            if (wasKnown && !wasEnabled && cached.enabled) {
+                // Keep an in-flight Premium menu attempt intact; clearing
+                // its pending marker would start a second menu flight that
+                // fights the first. A completed attempt may be retried.
+                if (premiumPendingGen !== gen) premiumAttemptedGen = -1;
+                manualQualityGen = -1;
+                enforcedGen = -1;
+                startWindow();
+                return;
+            }
+            // First real payload after a storage fallback: the earlier
+            // ready:false poll may have expired, so open a fresh window.
+            // Before initialization the normal start path below owns this.
+            if (!wasKnown && initialized && pollTimer === null && enforcedGen !== gen) {
+                premiumAttemptedGen = -1;
+                premiumPendingGen = -1;
+                enforcedGen = -1;
+                ensureWindow();
+                return;
+            }
             // If a window is pending, retry immediately with fresh settings.
-            // Intentionally NOT restarting an already-enforced or expired
-            // window: a late settings change applies from the next
-            // navigation so manual quality choices are never fought.
+            // Otherwise a late change applies from the next navigation so
+            // manual quality choices are never fought.
             if (pollTimer !== null && enforcedGen !== gen) {
                 try {
                     var outcome = attemptEnforce();
                     if (outcome === 'done') {
                         enforcedGen = gen;
+                        stopPoll();
+                    } else if (outcome === 'live') {
                         stopPoll();
                     }
                 } catch (err) { /* ignore */ }
@@ -606,10 +759,36 @@
             }
         } catch (err) { /* ignore */ }
     }, true);
+    // An ad pod can outlast MAX_AD_TICKS. Content actually starting to play
+    // is the reliable end-of-ad signal; enforcedGen is left unstamped when
+    // the budget expires, so this reopens a fresh window. ensureWindow()
+    // refuses when the user made a manual quality choice for this video.
+    document.addEventListener('playing', function (e) {
+        try {
+            var t = e && e.target;
+            if (!t || t.tagName !== 'VIDEO' || !isWatchOrEmbed()) return;
+            var player = getPlayer();
+            if (player && isAd(player)) return;
+            ensureWindow();
+        } catch (err) { /* ignore */ }
+    }, true);
+    document.addEventListener('click', function (e) {
+        try {
+            if (!e.isTrusted) return; // ignore our own menu clicks
+            var t = e.target;
+            if (!t || !t.closest) return;
+            // Only a menu item click counts; merely opening the gear does not.
+            var item = t.closest('.ytp-menuitem');
+            if (item && item.closest('.ytp-settings-menu')) {
+                manualQualityGen = gen;
+            }
+        } catch (err) { /* ignore */ }
+    }, true);
 
     requestSettings();
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
         try {
+            initialized = true;
             if (isWatchOrEmbed()) {
                 var p0 = getPlayer();
                 lastVideoId = getVideoId(p0) || null;
@@ -621,6 +800,7 @@
     } else {
         document.addEventListener('DOMContentLoaded', function () {
             try {
+                initialized = true;
                 if (isWatchOrEmbed()) {
                     var p1 = getPlayer();
                     lastVideoId = getVideoId(p1) || null;

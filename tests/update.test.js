@@ -26,6 +26,7 @@ function loadPopupUpdateHelpers() {
         setAttribute: () => {},
       }),
       body: { style: {} },
+      addEventListener: () => {},
     };
   }
   if (typeof global.localStorage === 'undefined') {
@@ -71,6 +72,8 @@ describe('update notifier', () => {
     assert.equal(update.compareVersions('10.5.0', 'v10.5.0'), 0);
     assert.equal(update.compareVersions('10.5', '10.5.0'), 0);
     assert.equal(update.compareVersions('9.9.9', '10.0.0'), -1);
+    assert.equal(update.compareVersions('10.6.0-rc1', '10.6.0'), 0);
+    assert.equal(update.compareVersions('10.6.0+build', '10.6.0'), 0);
   });
 
   it('isNewerVersion ignores missing and older releases', () => {
@@ -79,6 +82,23 @@ describe('update notifier', () => {
     assert.equal(update.isNewerVersion('10.4.9', '10.5.0'), false);
     assert.equal(update.isNewerVersion('', '10.5.0'), false);
     assert.equal(update.isNewerVersion('10.6.0', ''), false);
+    assert.equal(update.isNewerVersion('10.6.0-rc1', '10.6.0'), false);
+  });
+
+  it('rejects update links outside this repo', () => {
+    assert.equal(update.isSafeUpdateUrl('https://github.com/JasonXiao127/YT-Declutter/releases/tag/v10.6.0'), true);
+    assert.equal(update.isSafeUpdateUrl('https://www.github.com/JasonXiao127/YT-Declutter/releases'), true);
+    assert.equal(update.isSafeUpdateUrl('http://github.com/JasonXiao127/YT-Declutter/releases'), false);
+    assert.equal(update.isSafeUpdateUrl('https://evil.com/JasonXiao127/YT-Declutter/'), false);
+    assert.equal(update.isSafeUpdateUrl('https://github.com/someone/else/releases'), false);
+    assert.equal(update.isSafeUpdateUrl(null), false);
+  });
+
+  it('treats future-dated cache entries as stale', () => {
+    const now = Date.now();
+    assert.equal(update.isCacheFresh({ ts: now, latest: '10.6.0' }), true);
+    assert.equal(update.isCacheFresh({ ts: now + 60000, latest: '10.6.0' }), false);
+    assert.equal(update.isCacheFresh({ ts: now - 25 * 60 * 60 * 1000, latest: '10.6.0' }), false);
   });
 
   it('popup fetches latest, reads manifest version, and renders footer', () => {
@@ -87,7 +107,7 @@ describe('update notifier', () => {
     assert.ok(popup.includes('runtime.getManifest'), 'must read the installed version');
     assert.ok(popup.includes("getElementById('version-label')"), 'must bind the version label');
     assert.ok(popup.includes("getElementById('update-status')"), 'must bind the update status');
-    assert.ok(popup.includes('maybeCheckForUpdates()'), 'must run the check on popup open');
+    assert.match(popup, /\n\s+maybeCheckForUpdates\(\);/, 'must call the check on popup open (not just define it)');
     const html = fs.readFileSync(path.join(EXT, 'popup.html'), 'utf8');
     assert.ok(html.includes('id="version-label"'), 'popup.html needs the version label');
     assert.ok(html.includes('id="update-status"'), 'popup.html needs the update status');
@@ -110,5 +130,8 @@ describe('update notifier', () => {
     assert.ok(workflow.includes('npm test'), 'workflow must run tests before releasing');
     assert.ok(workflow.includes('npm run package'), 'workflow must build dist/');
     assert.ok(workflow.includes('yt-declutter-'), 'workflow must upload the packed zip');
+    assert.ok(workflow.includes('yt-declutter-${TAG}.zip'), 'workflow must build the tag-named zip');
+    assert.ok(workflow.includes('yt-declutter-${{ steps.version.outputs.tag }}.zip'), 'release body must name the same zip');
+    assert.ok(!workflow.includes('yt-declutter-${{ github.ref_name }}.zip'), 'release body must not add the v prefix');
   });
 });

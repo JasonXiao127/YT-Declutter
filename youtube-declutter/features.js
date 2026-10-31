@@ -33,11 +33,10 @@ globalThis.YT_DCLTR_FEATURES = [
             'ytd-rich-grid-renderer[is-shorts-grid]',
             'ytd-rich-section-renderer:has(ytd-rich-shelf-renderer[is-shorts])',
             'ytd-rich-item-renderer:has(a[href*="/shorts/"])',
-            'ytd-shelf-renderer:has(a[href*="/shorts/"])',
-            'grid-shelf-view-model:has(a[href*="/shorts/"])',
             'ytm-shorts-lockup-view-model',
             'ytd-reel-shelf-renderer',
             'ytd-guide-entry-renderer:has(a[href^="/shorts"])',
+            'ytd-guide-entry-renderer:has(a[title="Shorts" i])',
             'ytd-mini-guide-entry-renderer:has(a[href^="/shorts"])',
             'ytd-compact-video-renderer:has(a[href*="/shorts/"])',
             'ytd-grid-video-renderer:has(a[href*="/shorts/"])',
@@ -378,17 +377,15 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'search_fluff',
         label: 'Search Fluff (Shelves, Movies, Promos)',
-        description: 'Movie shelves, promos, suggestion shelves, and secondary panels in search results.',
+        description: 'Movie shelves, promos, and secondary panels in search results.',
         keywords: 'search movies shelf promo secondary exploratory suggestions',
         group: 'Search & Channel',
         selectors: [
-            'ytd-search ytd-shelf-renderer[thumbnail-style]:has(ytd-movie-renderer, a[href*="/movies"], a[href*="/store"], a[href*="/promo"])',
+            'ytd-search ytd-shelf-renderer:has(ytd-movie-renderer, a[href*="/movies"], a[href*="/store"], a[href*="/promo"])',
             'ytd-search ytd-horizontal-card-list-renderer:has(ytd-movie-renderer, a[href*="/movies"], a[href*="/store"], a[href*="/promo"])',
-            'ytd-search ytd-shelf-renderer',
-            'ytd-search ytd-horizontal-card-list-renderer',
+            'ytd-search grid-shelf-view-model:has(ytd-movie-renderer, a[href*="/movies"], a[href*="/store"], a[href*="/promo"])',
             'ytd-search ytd-secondary-search-container-renderer',
             'ytd-search ytd-reel-shelf-renderer',
-            'ytd-search grid-shelf-view-model',
             'ytd-search ytd-movie-renderer'
         ]
     },
@@ -405,6 +402,88 @@ globalThis.YT_DCLTR_FEATURES = [
             '#page-header yt-attribution-view-model',
             'ytd-recognition-shelf-renderer'
         ]
+    },
+    {
+        key: 'sidebar_subs_only',
+        label: 'Subscriptions-Only Sidebar',
+        description: 'Keeps only Subscriptions and your subscribed channels in the sidebar. Hides Home, Shorts, You, History, Explore, and More from YouTube.',
+        keywords: 'sidebar subscriptions channels guide only subs keep',
+        group: 'Home / Feed',
+        defaultHidden: false,
+        selectors: [
+            '#guide-content ytd-guide-section-renderer:has(a[href^="/feed/storefront"])',
+            '#guide-content ytd-guide-section-renderer:has(a[href*="tv.youtube.com"])',
+            '#guide-content ytd-guide-section-renderer:has(a[href*="music.youtube.com"])',
+            '#guide-content ytd-guide-section-renderer:has(a[href*="youtubekids.com"])',
+            '#guide-content ytd-guide-section-renderer:has(a[href*="/channel/UC-9-kyTW8ZkZNDHQJ6FgpwQ"])',
+            '#guide-content ytd-guide-section-renderer:has(a[href*="/channel/UC4R8DWoMoI7CAwX8_LjQHig"])',
+            '#guide-content ytd-guide-section-renderer:has(a[href^="/feed/you"]):not(:has(a[href^="/feed/subscriptions"]))',
+            '#guide-content ytd-guide-section-renderer:has(a[href^="/feed/history"]):not(:has(a[href^="/feed/subscriptions"]))',
+            '#guide-content ytd-guide-section-renderer > #items > ytd-guide-entry-renderer:not(#expander-item):not(#collapser-item):not(:has(a[href^="/feed/subscriptions"])):not(:has(a[href^="/feed/channels"])):not(:has(a[href^="/@"])):not(:has(a[href*="/channel/"])):not(:has(a[href*="/c/"])):not(:has(a[href*="/user/"]))',
+            '#guide-content ytd-guide-collapsible-section-entry-renderer:has(a[href^="/feed/you"])',
+            '#guide-content ytd-guide-collapsible-section-entry-renderer:has(a[href^="/feed/history"])',
+            '#guide-content ytd-guide-collapsible-entry-renderer:has(a[href^="/feed/you"])',
+            '#guide-content ytd-guide-collapsible-entry-renderer:has(a[href^="/feed/history"])',
+            'ytd-mini-guide-entry-renderer:not(:has(a[href^="/feed/subscriptions"]))'
+        ]
+    },
+    {
+        key: 'home_to_subs',
+        label: 'Home Redirects to Subscriptions',
+        description: 'Opening youtube.com/ lands on your Subscriptions feed instead. Opt-in.',
+        keywords: 'home redirect subscriptions feed homepage',
+        group: 'Home / Feed',
+        behavior: 'homeToSubs',
+        defaultEnabled: false
+    },
+    {
+        key: 'autoplay_off',
+        label: 'Turn Off Autoplay',
+        description: 'Switches the player autoplay toggle off and keeps it off. Restores it when turned back off. Opt-in.',
+        keywords: 'autoplay autonav next up next video player',
+        group: 'Watch Page',
+        behavior: 'autoplayOff',
+        defaultEnabled: false
+    },
+    {
+        key: 'monk_mode',
+        label: 'Monk Mode',
+        description: 'One switch lockdown: only search, subscriptions, and your channels. No feed, Shorts, recommendations, comments, or autoplay.',
+        keywords: 'monk mode lockdown focus subs only minimal',
+        behavior: 'monkMode',
+        mode: true,
+        defaultEnabled: false,
+        preset: {
+            shorts: true,
+            category_chips: true,
+            top_news: true,
+            surveys: true,
+            ads_playables: true,
+            guide_sections: true,
+            join_button: true,
+            home_feed: true,
+            mixes: true,
+            notifications: true,
+            create_button: true,
+            voice_search: true,
+            ai_search: true,
+            youtube_logo: true,
+            top_header: false,
+            comments: true,
+            recommended: true,
+            live_chat: true,
+            playlist_panel: true,
+            player_overlays: true,
+            video_action_buttons: true,
+            merch_and_fundraising: true,
+            ai_summary: true,
+            description_extras: false,
+            search_fluff: true,
+            channel_page_extras: true,
+            sidebar_subs_only: true,
+            home_to_subs: true,
+            autoplay_off: true
+        }
     }
 ];
 

@@ -49,6 +49,27 @@ describe('features schema', () => {
   it('defaults match the documented off-by-default set', () => {
     const { defaults } = loadFeatures();
     const off = Object.entries(defaults).filter(([, v]) => !v).map(([k]) => k).sort();
-    assert.deepEqual(off, ['home_feed', 'info_panels', 'playlist_panel', 'quality_premium', 'recommended', 'shorts_as_watch', 'top_header', 'youtube_logo']);
+    assert.deepEqual(off, ['autoplay_off', 'home_feed', 'home_to_subs', 'info_panels', 'monk_mode', 'playlist_panel', 'quality_premium', 'recommended', 'shorts_as_watch', 'sidebar_subs_only', 'top_header', 'youtube_logo']);
+  });
+
+  it('monk mode is a well-formed mode layer, not a toggle', () => {
+    const { features } = loadFeatures();
+    const monk = features.find((f) => f.key === 'monk_mode');
+    assert.ok(monk, 'monk_mode must exist');
+    assert.equal(monk.mode, true, 'monk_mode must be marked as a mode');
+    assert.ok(monk.preset && typeof monk.preset === 'object', 'monk_mode needs a preset map');
+    assert.ok(!monk.selectors, 'mode must not carry selectors');
+    assert.ok(!monk.group, 'mode must not render in any group');
+    const keys = features.map((f) => f.key);
+    for (const key of Object.keys(monk.preset)) {
+      assert.ok(keys.includes(key), `preset key ${key} must be a real feature`);
+      assert.notEqual(key, 'monk_mode', 'preset must not reference itself');
+    }
+    // The preset is all hiding/behavior keys: quality, Premium,
+    // Shorts-as-watch, and info panels stay exactly as the user left them.
+    for (const untouched of ['quality_enabled', 'quality_premium', 'shorts_as_watch', 'info_panels']) {
+      assert.ok(!Object.prototype.hasOwnProperty.call(monk.preset, untouched), `${untouched} must stay user-controlled`);
+    }
+    assert.equal(Object.keys(monk.preset).length, 29, 'preset covers 29 settings');
   });
 });
