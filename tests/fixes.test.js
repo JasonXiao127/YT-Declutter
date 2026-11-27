@@ -364,6 +364,12 @@ describe('release and docs', () => {
     assert.ok(!workflow.includes('TAG="${{ steps.version.outputs.tag }}"'));
   });
 
+  it('test script leaves the glob to the shell for Node 20 CI', () => {
+    const pkg = JSON.parse(readRoot('package.json'));
+    assert.equal(pkg.scripts.test, 'node --test tests/*.test.js');
+    assert.ok(!pkg.scripts.test.includes('"'), 'quoted globs are not expanded by Node 20');
+  });
+
   it('README toggle and default counts match features.js', () => {
     const features = loadFeatures();
     const toggles = features.filter((f) => f.mode !== true);
