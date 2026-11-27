@@ -383,14 +383,17 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'merch_and_fundraising',
         label: 'Merch & Fundraiser Shelves',
-        description: 'Merch, tickets, shopping, donation, and badge shelves around the video.',
-        keywords: 'merch fundraiser donation tickets shopping shelf store watch',
+        description: 'Merch, tickets, shopping shelves, in-player product promos, donation, and badge shelves around the video.',
+        keywords: 'merch fundraiser donation tickets shopping shelf store product promo live featured watch',
         group: 'Watch Page',
         selectors: [
             'ytd-merch-shelf-renderer',
             'ytd-structured-description-content-renderer #merch-shelf',
             'ytd-ticket-shelf-renderer',
             '#shopping-timely-shelf',
+            '.ytp-suggested-action',
+            '.ytp-suggested-action-badge',
+            '.ytp-featured-product-price-when-promotion-text-enabled',
             '#secondary #donation-shelf',
             'ytd-donation-shelf-renderer'
         ]

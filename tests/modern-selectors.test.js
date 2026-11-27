@@ -113,9 +113,12 @@ describe('modern YouTube selectors', () => {
     assert.ok(selectors.some((s) => s.includes('a[href^="/labs"]')));
   });
 
-  it('covers shopping shelf, description extras, and the Hype action', () => {
+  it('covers shopping shelf, in-player product promos, description extras, and the Hype action', () => {
     const { features } = loadFeatures();
-    assert.ok(selectorsFor(features, 'merch_and_fundraising').includes('#shopping-timely-shelf'));
+    const merch = selectorsFor(features, 'merch_and_fundraising');
+    assert.ok(merch.includes('#shopping-timely-shelf'));
+    assert.ok(merch.includes('.ytp-suggested-action-badge'));
+    assert.ok(merch.includes('.ytp-featured-product-price-when-promotion-text-enabled'));
     const extras = selectorsFor(features, 'description_extras');
     assert.ok(extras.includes('#below how-this-was-made-section-view-model'));
     assert.ok(extras.includes('#below yt-video-attributes-section-view-model'));

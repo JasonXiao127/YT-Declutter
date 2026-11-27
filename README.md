@@ -54,7 +54,7 @@ Hide parts of YouTube you do not want. Pick what to hide. Changes apply at once.
 - **Playlist Queue Panel**: Hides the playlist queue above recommendations when a playlist is open. Opt-in.
 - **Player Overlays (End Screens, Paid Promotion)**: Hides end screens, paid promotion overlays, and reaction panels over the player.
 - **Video Actions (Download, Thanks, Hype, Clip)**: Hides the Download, Thanks, Hype, Clip, and purchase buttons under the video, plus the download menu item.
-- **Merch & Fundraiser Shelves**: Hides merch, shopping, donation, and badge shelves around the video.
+- **Merch & Fundraiser Shelves**: Hides merch, shopping, in-player product promos, donation, and badge shelves around the video.
 - **AI Summaries (Video & Search)**: Hides the AI-generated summary box below the player and AI summaries in search results.
 - **Ask About This Video (AI)**: Hides the Ask button, Ask questions box, and YouChat entry points on the watch page.
 - **Description Extras (Chapters, Transcript)**: Hides chapters, transcript, infocards, the teaser carousel, auto-dub info, and the people-mentioned section.
@@ -73,13 +73,13 @@ Hide parts of YouTube you do not want. Pick what to hide. Changes apply at once.
 - Headers show `on/total` counts per group and overall.
 - Each group has **All** / **None** shortcuts. **All** enables the group's default-on toggles and does not turn on its opt-ins; **None** turns off everything in the group. **Enable all** / **Disable all** act globally: Enable all turns on the 25 default-on toggles and does not turn on the 11 opt-ins (or Monk Mode); Disable all turns everything off, including Monk Mode. **Reset to Defaults** restores the defaults above (quality 1080p, Monk Mode off) and needs two clicks to confirm.
 - Monk Mode shows as a card above the list with `On · 32 settings locked` while active. Locked rows are disabled with a hint; the rest stay editable.
-- The footer shows the installed version (e.g. `v10.8.0`) and, when a newer release exists, an update link (see Updates).
+- The footer shows the installed version (e.g. `v10.8.1`) and, when a newer release exists, an update link (see Updates).
 
 ## Installation
 
 ### Chrome, Edge, Brave, Opera (GitHub releases)
 
-1. Open the [Releases page](https://github.com/JasonXiao127/YT-Declutter/releases) and download the latest `yt-declutter-<version>.zip` (e.g. `yt-declutter-10.8.0.zip`).
+1. Open the [Releases page](https://github.com/JasonXiao127/YT-Declutter/releases) and download the latest `yt-declutter-<version>.zip` (e.g. `yt-declutter-10.8.1.zip`).
 2. Unzip it.
 3. Open `chrome://extensions`.
 4. Turn on Developer mode.
@@ -91,7 +91,7 @@ Releases are cut from version tags only (`v<version>`, matching `package.json` /
 
 ## Updates
 
-The popup footer always shows the installed version (e.g. `v10.8.0`).
+The popup footer always shows the installed version (e.g. `v10.8.1`).
 
 - On popup open it checks `https://api.github.com/repos/JasonXiao127/YT-Declutter/releases/latest` at most once per 24 hours (result cached in `chrome.storage.local`). Failures (offline, rate-limited, denied) are cached so a popup cannot hammer the API: with a previously seen version the cache holds for the same window, otherwise it retries after an hour. Failures fall back to the last cached result (or just the version number). This is the only network call the extension makes. No analytics.
 - When a newer tag exists the footer shows an `Update vX.Y.Z available` link to the release. Click it, download the new zip, and reinstall over the old folder (your settings are kept).
@@ -119,6 +119,7 @@ The popup footer always shows the installed version (e.g. `v10.8.0`).
 
 ## Changelog
 
+- `10.8.1`: Hides live-stream in-player product promos (the YouTube Shopping overlay with a product image/price) under Merch & Fundraiser Shelves. This is the promo rendered inside the player, not just the shelf around it.
 - `10.8.0`: Modern YouTube sweep. New Community Posts toggle (Latest YouTube posts shelf, channel Posts tab, community shortcut), Ask About This Video toggle (watch-page Ask, Ask questions, YouChat, fullscreen quick action), and Most Relevant Shelf toggle for the Subscriptions feed. AI summary selectors now cover search results; Ask YouTube search chips, Shorts v2 lockups/search shelves, modern `list=RD` Mix URLs, masthead v3 ads, related-video chips, YouTube Labs/Report history sections, the shopping shelf, auto-dub/people-mentioned description extras, and the Hype action are handled. Hiding recommended videos now collapses the empty sidebar column without hiding a visible playlist queue or live chat.
 - `10.7.0`: Monk Mode: one-switch lockdown to search, subscriptions, subscribed channels, and watch essentials (no feed, Shorts, recommendations, comments, autoplay). Preset layer leaves saved toggles untouched; exit restores them. New opt-in toggles: Subscriptions-Only Sidebar, Home Redirects to Subscriptions, Turn Off Autoplay.
 - `10.6.0`: Expanded coverage: Home Feed, Entire Top Header, Recommended Sidebar, Live Chat, Playlist Queue Panel, Mixes & Radio, and refreshed 2026 selectors. Fixed archived livestreams never getting preferred quality, Premium quality on non-English YouTube, ad waits abandoning enforcement, storage-fallback races, update-check retry storms, group All/None controls disappearing when collapsed, and the release zip filename. Bulk enable now leaves opt-in toggles off. Deterministic zip builds.
