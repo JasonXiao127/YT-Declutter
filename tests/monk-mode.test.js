@@ -64,13 +64,13 @@ function getPopupHelpers() {
 }
 
 describe('monk mode preset', () => {
-  it('forces 29 settings: 27 on, 2 off', () => {
+  it('forces 32 settings: 30 on, 2 off', () => {
     const features = loadFeatures();
     const monk = features.find((f) => f.key === 'monk_mode');
     assert.ok(monk && monk.preset, 'monk preset must exist');
     const entries = Object.entries(monk.preset);
-    assert.equal(entries.length, 29);
-    assert.equal(entries.filter(([, v]) => v === true).length, 27);
+    assert.equal(entries.length, 32);
+    assert.equal(entries.filter(([, v]) => v === true).length, 30);
     assert.deepEqual(
       entries.filter(([, v]) => v === false).map(([k]) => k).sort(),
       ['description_extras', 'top_header']

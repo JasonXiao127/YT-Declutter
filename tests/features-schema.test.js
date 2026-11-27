@@ -70,6 +70,6 @@ describe('features schema', () => {
     for (const untouched of ['quality_enabled', 'quality_premium', 'shorts_as_watch', 'info_panels']) {
       assert.ok(!Object.prototype.hasOwnProperty.call(monk.preset, untouched), `${untouched} must stay user-controlled`);
     }
-    assert.equal(Object.keys(monk.preset).length, 29, 'preset covers 29 settings');
+    assert.equal(Object.keys(monk.preset).length, 32, 'preset covers 32 settings');
   });
 });

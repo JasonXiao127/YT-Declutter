@@ -373,8 +373,8 @@ describe('release and docs', () => {
     const defaultOn = toggles.filter(
       (f) => !(f.defaultHidden === false || (f.behavior && f.defaultEnabled === false))
     ).length;
-    assert.equal(defaultOn, 22);
-    assert.match(readme, /\b22 default-on\b/);
+    assert.equal(defaultOn, 25);
+    assert.match(readme, /\b25 default-on\b/);
   });
 
   it('packaging normalizes mtimes and sorts entries', () => {

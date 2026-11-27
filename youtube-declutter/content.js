@@ -81,13 +81,23 @@
         return typeof key === 'string' && KEY_RE.test(key) && !FORBIDDEN_KEYS.has(key);
     }
 
+    // Hiding the related list leaves an empty right column because YouTube
+    // keeps the two-column watch layout. Collapse #secondary only when no
+    // other sidebar content (playlist queue / live chat) is still shown.
+    const LAYOUT_CSS = [
+        'html:not(.dcltr-show-recommended) ytd-watch-flexy #secondary:not(:has(#playlist:not([hidden]))):not(:has(ytd-live-chat-frame)) { display: none !important; }',
+        'html:not(.dcltr-show-recommended):not(.dcltr-show-playlist_panel) ytd-watch-flexy #secondary:has(#playlist:not([hidden])):not(:has(ytd-live-chat-frame)) { display: none !important; }',
+        'html:not(.dcltr-show-recommended):not(.dcltr-show-live_chat) ytd-watch-flexy #secondary:has(ytd-live-chat-frame):not(:has(#playlist:not([hidden]))) { display: none !important; }',
+        'html:not(.dcltr-show-recommended):not(.dcltr-show-playlist_panel):not(.dcltr-show-live_chat) ytd-watch-flexy #secondary:has(#playlist:not([hidden])):has(ytd-live-chat-frame) { display: none !important; }'
+    ].join('\n');
+
     function buildCss() {
         return FEATURES.filter(feature =>
             feature && !feature.behavior && isSafeKey(feature.key) &&
             Array.isArray(feature.selectors) && feature.selectors.length > 0
         ).map(feature =>
             `html:not(.dcltr-show-${feature.key}) :is(${feature.selectors.join(', ')}) { display: none !important; }\n`
-        ).join('');
+        ).join('') + LAYOUT_CSS + '\n';
     }
 
     function injectStyle() {

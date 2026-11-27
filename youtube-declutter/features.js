@@ -35,6 +35,9 @@ globalThis.YT_DCLTR_FEATURES = [
             'ytd-rich-item-renderer:has(a[href*="/shorts/"])',
             'ytm-shorts-lockup-view-model',
             'ytd-reel-shelf-renderer',
+            'ytm-shorts-lockup-view-model-v2',
+            'grid-shelf-view-model:has(ytm-shorts-lockup-view-model-v2)',
+            'grid-shelf-view-model:has(a[href^="/shorts/"])',
             'ytd-guide-entry-renderer:has(a[href^="/shorts"])',
             'ytd-guide-entry-renderer:has(a[title="Shorts" i])',
             'ytd-mini-guide-entry-renderer:has(a[href^="/shorts"])',
@@ -61,11 +64,12 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'category_chips',
         label: 'Category Chips',
-        description: 'Filter chips bar above the home feed.',
-        keywords: 'filter chips categories topics feed',
+        description: 'Filter chips above the home feed and beside recommended videos.',
+        keywords: 'filter chips categories topics feed related',
         group: 'Home / Feed',
         selectors: [
-            'ytd-feed-filter-chip-bar-renderer'
+            'ytd-feed-filter-chip-bar-renderer',
+            'yt-related-chip-cloud-renderer'
         ]
     },
     {
@@ -77,6 +81,35 @@ globalThis.YT_DCLTR_FEATURES = [
         selectors: [
             'ytd-rich-section-renderer:has(yt-formatted-string[title*="top news" i])',
             'ytd-rich-section-renderer:has(yt-formatted-string[title*="breaking news" i])'
+        ]
+    },
+    {
+        key: 'community_posts',
+        label: 'Community Posts',
+        description: 'Community posts in feeds (including the Latest YouTube posts shelf) and their channel Posts tab.',
+        keywords: 'community posts latest shelf backstage channel tab',
+        group: 'Home / Feed',
+        selectors: [
+            'ytd-rich-section-renderer:has(ytd-post-renderer)',
+            'ytd-rich-section-renderer:has(ytd-backstage-post-renderer)',
+            'ytd-rich-shelf-renderer:has(ytd-post-renderer)',
+            'ytd-rich-item-renderer:has(ytd-post-renderer)',
+            'grid-shelf-view-model:has(ytd-post-renderer)',
+            'ytd-search ytd-shelf-renderer:has(ytd-post-renderer)',
+            'ytd-post-renderer',
+            'ytd-backstage-post-renderer',
+            'yt-tab-shape[tab-title="posts" i]',
+            'yt-flexible-actions-view-model button-view-model:has(a[aria-label="community" i])'
+        ]
+    },
+    {
+        key: 'most_relevant',
+        label: 'Most Relevant Shelf',
+        description: 'The "Most relevant" recommendation shelf on the Subscriptions feed.',
+        keywords: 'subscriptions most relevant recommended shelf feed',
+        group: 'Home / Feed',
+        selectors: [
+            'ytd-rich-section-renderer[page-subtype="subscriptions"]:has(ytd-rich-shelf-renderer[elements-per-row="3"])'
         ]
     },
     {
@@ -103,7 +136,11 @@ globalThis.YT_DCLTR_FEATURES = [
             'ytd-video-renderer:has(a[href*="/playables"])',
             'yt-lockup-view-model:has(a[href*="/playables"])',
             'ytd-video-masthead-ad-renderer',
+            'ytd-video-masthead-ad-v3-renderer',
             'ytd-video-masthead-ad-advertiser-info-renderer',
+            'ytd-video-masthead-ad-primary-video-renderer',
+            'ytd-video-masthead-ad-primary-video-overlay-renderer',
+            'ytd-page-top-ad-layout-renderer',
             'ytd-ad-slot-renderer',
             'ytd-in-feed-ad-layout-renderer',
             'ytd-display-ad-renderer',
@@ -134,6 +171,12 @@ globalThis.YT_DCLTR_FEATURES = [
             'ytd-guide-section-renderer:has(a[href^="/premium"])',
             'ytd-guide-section-renderer:has(a[href^="/feed/storefront"])',
             'ytd-guide-section-renderer:has(a[href*="music.youtube.com"])',
+            'ytd-guide-section-renderer:has(a[href*="tv.youtube.com"])',
+            'ytd-guide-section-renderer:has(a[href*="youtubekids.com"])',
+            'ytd-guide-section-renderer:has(a[href^="/labs"])',
+            'ytd-guide-section-renderer:has(a[href="/reporthistory"])',
+            'ytd-guide-entry-renderer:has(a[href^="/labs"])',
+            'ytd-guide-entry-renderer:has(a[href="/reporthistory"])',
             'ytd-guide-entry-renderer:has(a[href^="/premium"])',
             'ytd-guide-entry-renderer:has(a[href^="/feed/storefront"])',
             'ytd-guide-entry-renderer:has(a[href^="/gaming"])',
@@ -178,6 +221,12 @@ globalThis.YT_DCLTR_FEATURES = [
             'ytd-video-renderer:has(a[href*="list=RDMM"])',
             'ytd-playlist-renderer:has(a[href*="list=RDMM"])',
             'ytd-compact-playlist-renderer:has(a[href*="list=RDMM"])',
+            'yt-lockup-view-model:has(a[href*="list=RD"])',
+            'ytd-rich-item-renderer:has(a[href*="list=RD"])',
+            'ytd-compact-video-renderer:has(a[href*="list=RD"])',
+            'ytd-video-renderer:has(a[href*="list=RD"])',
+            'ytd-playlist-renderer:has(a[href*="list=RD"])',
+            'ytd-compact-playlist-renderer:has(a[href*="list=RD"])',
             'ytd-radio-renderer',
             'ytd-compact-radio-renderer'
         ]
@@ -216,12 +265,14 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'ai_search',
         label: 'AI Search (Ask YouTube)',
-        description: 'Ask and AI search button in the top bar.',
-        keywords: 'ai ask search top bar gemini',
+        description: 'Ask / AI search button in the top bar and the Ask YouTube filter chip on search.',
+        keywords: 'ai ask search top bar gemini chip',
         group: 'Top Bar',
         selectors: [
             'ytd-masthead ytd-ask-search-button-renderer',
-            'ytd-masthead button[aria-label^="Ask" i]'
+            'ytd-masthead button[aria-label^="Ask" i]',
+            'yt-chip-cloud-chip-renderer[chip-style="STYLE_AI_MODE_CHIP"]',
+            'ytd-search-header-renderer yt-chip-cloud-chip-renderer:has(button[aria-label*="Ask" i])'
         ]
     },
     {
@@ -316,13 +367,14 @@ globalThis.YT_DCLTR_FEATURES = [
     },
     {
         key: 'video_action_buttons',
-        label: 'Video Actions (Download, Thanks, Clip)',
-        description: 'Download, Thanks, Clip, and purchase buttons under the video.',
-        keywords: 'download thanks clip purchase actions watch',
+        label: 'Video Actions (Download, Thanks, Hype, Clip)',
+        description: 'Download, Thanks, Hype, Clip, and purchase buttons under the video.',
+        keywords: 'download thanks hype clip purchase actions watch',
         group: 'Watch Page',
         selectors: [
             '#below ytd-download-button-renderer',
             '#below yt-button-view-model:has(button[aria-label*="thanks" i])',
+            '#below yt-button-view-model:has(button[aria-label*="hype" i])',
             '#below yt-button-view-model:has(button[aria-label*="clip" i])',
             '#below ytd-video-owner-renderer > #purchase-button',
             'ytd-menu-service-item-download-renderer'
@@ -331,36 +383,59 @@ globalThis.YT_DCLTR_FEATURES = [
     {
         key: 'merch_and_fundraising',
         label: 'Merch & Fundraiser Shelves',
-        description: 'Merch, tickets, donation, and badge shelves around the video.',
-        keywords: 'merch fundraiser donation tickets shelf store watch',
+        description: 'Merch, tickets, shopping, donation, and badge shelves around the video.',
+        keywords: 'merch fundraiser donation tickets shopping shelf store watch',
         group: 'Watch Page',
         selectors: [
             'ytd-merch-shelf-renderer',
             'ytd-structured-description-content-renderer #merch-shelf',
             'ytd-ticket-shelf-renderer',
+            '#shopping-timely-shelf',
             '#secondary #donation-shelf',
             'ytd-donation-shelf-renderer'
         ]
     },
     {
         key: 'ai_summary',
-        label: 'AI Video Summary',
-        description: 'AI-generated video summary box below the video.',
-        keywords: 'ai summary description watch',
+        label: 'AI Summaries (Video & Search)',
+        description: 'AI-generated summaries below the player and in search results.',
+        keywords: 'ai summary description watch search',
         group: 'Watch Page',
-        selectors: ['#below [has-video-summary]']
+        selectors: [
+            '#below [has-video-summary]',
+            '[has-video-summary]',
+            'video-summary-content-view-model',
+            'video-summary-content-view-model-wiz',
+            'yt-video-summary-content-view-model'
+        ]
+    },
+    {
+        key: 'watch_ask',
+        label: 'Ask About This Video (AI)',
+        description: 'Ask button, Ask questions box, and YouChat entry points on the watch page.',
+        keywords: 'ask ai questions youchat gemini video watch',
+        group: 'Watch Page',
+        selectors: [
+            '#below yt-button-view-model:has(button[aria-label="Ask" i])',
+            '#flexible-item-buttons yt-button-view-model:has(button[aria-label="Ask" i])',
+            'yt-video-description-youchat-section-view-model',
+            'yt-player-quick-action-buttons:has(.you-chat-entrypoint-button)',
+            '.ytp-fullscreen-quick-actions .you-chat-entrypoint-button'
+        ]
     },
     {
         key: 'description_extras',
         label: 'Description Extras (Chapters, Transcript)',
-        description: 'Chapters, transcript, infocards, and teaser carousel.',
-        keywords: 'chapters transcript infocards teaser description watch',
+        description: 'Chapters, transcript, infocards, teaser carousel, auto-dub info, and people mentioned.',
+        keywords: 'chapters transcript infocards teaser description auto-dubbed people mentioned watch',
         group: 'Watch Page',
         selectors: [
             '#below ytd-horizontal-card-list-renderer[modern-chapters]',
             '#below ytd-video-description-transcript-section-renderer',
             '#below ytd-video-description-infocards-section-renderer',
-            '#below #teaser-carousel'
+            '#below #teaser-carousel',
+            '#below how-this-was-made-section-view-model',
+            '#below yt-video-attributes-section-view-model'
         ]
     },
     {
@@ -415,6 +490,8 @@ globalThis.YT_DCLTR_FEATURES = [
             '#guide-content ytd-guide-section-renderer:has(a[href*="tv.youtube.com"])',
             '#guide-content ytd-guide-section-renderer:has(a[href*="music.youtube.com"])',
             '#guide-content ytd-guide-section-renderer:has(a[href*="youtubekids.com"])',
+            '#guide-content ytd-guide-section-renderer:has(a[href^="/labs"])',
+            '#guide-content ytd-guide-section-renderer:has(a[href="/reporthistory"])',
             '#guide-content ytd-guide-section-renderer:has(a[href*="/channel/UC-9-kyTW8ZkZNDHQJ6FgpwQ"])',
             '#guide-content ytd-guide-section-renderer:has(a[href*="/channel/UC4R8DWoMoI7CAwX8_LjQHig"])',
             '#guide-content ytd-guide-section-renderer:has(a[href^="/feed/you"]):not(:has(a[href^="/feed/subscriptions"]))',
@@ -457,6 +534,8 @@ globalThis.YT_DCLTR_FEATURES = [
             shorts: true,
             category_chips: true,
             top_news: true,
+            community_posts: true,
+            most_relevant: true,
             surveys: true,
             ads_playables: true,
             guide_sections: true,
@@ -477,6 +556,7 @@ globalThis.YT_DCLTR_FEATURES = [
             video_action_buttons: true,
             merch_and_fundraising: true,
             ai_summary: true,
+            watch_ask: true,
             description_extras: false,
             search_fluff: true,
             channel_page_extras: true,

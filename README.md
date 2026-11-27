@@ -6,11 +6,11 @@ Hide parts of YouTube you do not want. Pick what to hide. Changes apply at once.
 
 ## Features
 
-33 toggles in 6 groups, plus Monk Mode and a preferred-resolution dropdown. Most hiding is on by default; 11 toggles are opt-in: Logo & Seasonal Doodles, Entire Top Header, Home Feed, Recommended Sidebar, Playlist Queue Panel, Info Panels, Prefer enhanced bitrate, Open Shorts as regular videos, Subscriptions-Only Sidebar, Home Redirects to Subscriptions, and Turn Off Autoplay.
+36 toggles in 6 groups, plus Monk Mode and a preferred-resolution dropdown. Most hiding is on by default; 11 toggles are opt-in: Logo & Seasonal Doodles, Entire Top Header, Home Feed, Recommended Sidebar, Playlist Queue Panel, Info Panels, Prefer enhanced bitrate, Open Shorts as regular videos, Subscriptions-Only Sidebar, Home Redirects to Subscriptions, and Turn Off Autoplay.
 
 **Monk Mode**
 
-- **Monk Mode**: One switch at the top of the popup. While on, YouTube is locked to search, your Subscriptions feed, your subscribed channels, and the watch page essentials (player, title/channel, description, chapters/transcript, like/save/share). Everything else is forced off: home feed (opening `youtube.com/` lands on `/feed/subscriptions`), Shorts, sidebar sections and entries beyond subscriptions/channels, related/up-next, comments, live chat, playlist queue, end screens, pause suggestions, merch, fundraiser, AI summary, mixes, download/thanks/clip, masthead logo/notifications/create/voice/Ask, ads, surveys, news, chips, channel banners/links, search shelves/movies/promos, and autoplay. It is a layer over your saved toggles, not a preset: your setup is never overwritten, and exiting restores it exactly. Locked rows show their forced state and cannot be flipped; group **All** / **None** and **Enable all** are parked while active. **Disable all** and **Reset** still work and exit the mode. Autoplay is switched back on when you exit, where possible; closing the tab before exiting may leave it off.
+- **Monk Mode**: One switch at the top of the popup. While on, YouTube is locked to search, your Subscriptions feed, your subscribed channels, and the watch page essentials (player, title/channel, description, chapters/transcript, like/save/share). Everything else is forced off: home feed (opening `youtube.com/` lands on `/feed/subscriptions`), Shorts, sidebar sections and entries beyond subscriptions/channels, related/up-next, comments, live chat, playlist queue, end screens, pause suggestions, merch, fundraiser, AI summary, Ask about this video, community posts, the Most relevant shelf, mixes, download/thanks/hype/clip, masthead logo/notifications/create/voice/Ask, ads, surveys, news, chips, channel banners/links, search shelves/movies/promos, and autoplay. It is a layer over your saved toggles, not a preset: your setup is never overwritten, and exiting restores it exactly. Locked rows show their forced state and cannot be flipped; group **All** / **None** and **Enable all** are parked while active. **Disable all** and **Reset** still work and exit the mode. Autoplay is switched back on when you exit, where possible; closing the tab before exiting may leave it off.
 
 **Playback**
 
@@ -24,11 +24,13 @@ Hide parts of YouTube you do not want. Pick what to hide. Changes apply at once.
 
 **Home / Feed**
 
-- **Category Chips**: Hides the filter chips bar above the home feed.
+- **Category Chips**: Hides the filter chips bar above the home feed and the related-video chips beside the player.
 - **Top News Section**: Hides the Top news and Breaking news shelves in the feed.
+- **Community Posts**: Hides Community posts in feeds (including the Latest YouTube posts shelf), the community shortcut, and the channel Posts tab.
+- **Most Relevant Shelf**: Hides the "Most relevant" recommendation shelf on the Subscriptions feed.
 - **Feedback Surveys**: Hides inline feedback and survey prompts.
-- **Ads, Playables & Nag Toasts**: Hides Playables links, masthead ads, ad slots, and ad-blocker nag toasts.
-- **Sidebar Sections (Explore, More from YouTube)**: Hides Explore, Trending, Shopping, Premium, Storefront, and More-from-YouTube sidebar sections.
+- **Ads, Playables & Nag Toasts**: Hides Playables links, masthead ads (including the v3 player ad), ad slots, and ad-blocker nag toasts.
+- **Sidebar Sections (Explore, More from YouTube)**: Hides Explore, Trending, Shopping, Premium, Storefront, YouTube Labs, Report history, and More-from-YouTube sidebar sections.
 - **Join Buttons**: Hides channel Join and membership buttons.
 - **Home Feed**: Hides the entire video grid on the homepage. Opt-in; search and subscriptions are untouched.
 - **Mixes & Radio**: Hides auto-generated Mix and radio playlists in feeds and sidebars.
@@ -40,21 +42,22 @@ Hide parts of YouTube you do not want. Pick what to hide. Changes apply at once.
 - **Notifications Bell**: Hides the notification bell.
 - **Create Button (Top Bar Only)**: Hides the Create / Upload button in the top bar. Does not touch Clip or other watch page buttons.
 - **Voice Search Button**: Hides the microphone button next to search.
-- **AI Search (Ask YouTube)**: Hides the Ask / AI search button in the top bar.
+- **AI Search (Ask YouTube)**: Hides the Ask / AI search button in the top bar and the Ask YouTube filter chip on search.
 - **Logo & Seasonal Doodles**: Hides the YouTube logo and seasonal art. Off by default. Hiding the logo also removes the home link.
 - **Entire Top Header**: Hides the full masthead: search, buttons, and logo together. Opt-in.
 
 **Watch Page**
 
 - **Comments**: Hides the comments section under videos and the comments engagement panel.
-- **Recommended Sidebar (Up Next)**: Hides the related-video list beside the player. Opt-in; keeps comments and description.
+- **Recommended Sidebar (Up Next)**: Hides the related-video list beside the player and widens the player into the empty column. Opt-in; keeps comments and description, and keeps a visible playlist queue or live chat.
 - **Live Chat**: Hides live chat and chat replay beside live streams and premieres.
 - **Playlist Queue Panel**: Hides the playlist queue above recommendations when a playlist is open. Opt-in.
 - **Player Overlays (End Screens, Paid Promotion)**: Hides end screens, paid promotion overlays, and reaction panels over the player.
-- **Video Actions (Download, Thanks, Clip)**: Hides the Download, Thanks, Clip, and purchase buttons under the video, plus the download menu item.
-- **Merch & Fundraiser Shelves**: Hides merch, donation, and badge shelves around the video.
-- **AI Video Summary**: Hides the AI-generated video summary box below the video.
-- **Description Extras (Chapters, Transcript)**: Hides chapters, transcript, infocards, and the teaser carousel in the description area.
+- **Video Actions (Download, Thanks, Hype, Clip)**: Hides the Download, Thanks, Hype, Clip, and purchase buttons under the video, plus the download menu item.
+- **Merch & Fundraiser Shelves**: Hides merch, shopping, donation, and badge shelves around the video.
+- **AI Summaries (Video & Search)**: Hides the AI-generated summary box below the player and AI summaries in search results.
+- **Ask About This Video (AI)**: Hides the Ask button, Ask questions box, and YouChat entry points on the watch page.
+- **Description Extras (Chapters, Transcript)**: Hides chapters, transcript, infocards, the teaser carousel, auto-dub info, and the people-mentioned section.
 - **Info Panels (Clarify Box)**: Hides fact-check / clarify info boxes below the player. Off by default.
 - **Turn Off Autoplay**: Switches the player autoplay toggle off and keeps it off. Restores it when turned back off. Off by default.
 
@@ -68,15 +71,15 @@ Hide parts of YouTube you do not want. Pick what to hide. Changes apply at once.
 - Toggle groups are collapsible; collapsed state is remembered per browser.
 - The search box filters every toggle by label, description, and keywords (e.g. `hide comments`). `Esc` clears the search; empty `Esc` closes the popup.
 - Headers show `on/total` counts per group and overall.
-- Each group has **All** / **None** shortcuts. **All** enables the group's default-on toggles and does not turn on its opt-ins; **None** turns off everything in the group. **Enable all** / **Disable all** act globally: Enable all turns on the 22 default-on toggles and does not turn on the 11 opt-ins (or Monk Mode); Disable all turns everything off, including Monk Mode. **Reset to Defaults** restores the defaults above (quality 1080p, Monk Mode off) and needs two clicks to confirm.
-- Monk Mode shows as a card above the list with `On · 29 settings locked` while active. Locked rows are disabled with a hint; the rest stay editable.
-- The footer shows the installed version (e.g. `v10.7.0`) and, when a newer release exists, an update link (see Updates).
+- Each group has **All** / **None** shortcuts. **All** enables the group's default-on toggles and does not turn on its opt-ins; **None** turns off everything in the group. **Enable all** / **Disable all** act globally: Enable all turns on the 25 default-on toggles and does not turn on the 11 opt-ins (or Monk Mode); Disable all turns everything off, including Monk Mode. **Reset to Defaults** restores the defaults above (quality 1080p, Monk Mode off) and needs two clicks to confirm.
+- Monk Mode shows as a card above the list with `On · 32 settings locked` while active. Locked rows are disabled with a hint; the rest stay editable.
+- The footer shows the installed version (e.g. `v10.8.0`) and, when a newer release exists, an update link (see Updates).
 
 ## Installation
 
 ### Chrome, Edge, Brave, Opera (GitHub releases)
 
-1. Open the [Releases page](https://github.com/JasonXiao127/YT-Declutter/releases) and download the latest `yt-declutter-<version>.zip` (e.g. `yt-declutter-10.7.0.zip`).
+1. Open the [Releases page](https://github.com/JasonXiao127/YT-Declutter/releases) and download the latest `yt-declutter-<version>.zip` (e.g. `yt-declutter-10.8.0.zip`).
 2. Unzip it.
 3. Open `chrome://extensions`.
 4. Turn on Developer mode.
@@ -88,7 +91,7 @@ Releases are cut from version tags only (`v<version>`, matching `package.json` /
 
 ## Updates
 
-The popup footer always shows the installed version (e.g. `v10.7.0`).
+The popup footer always shows the installed version (e.g. `v10.8.0`).
 
 - On popup open it checks `https://api.github.com/repos/JasonXiao127/YT-Declutter/releases/latest` at most once per 24 hours (result cached in `chrome.storage.local`). Failures (offline, rate-limited, denied) are cached so a popup cannot hammer the API: with a previously seen version the cache holds for the same window, otherwise it retries after an hour. Failures fall back to the last cached result (or just the version number). This is the only network call the extension makes. No analytics.
 - When a newer tag exists the footer shows an `Update vX.Y.Z available` link to the release. Click it, download the new zip, and reinstall over the old folder (your settings are kept).
@@ -103,19 +106,20 @@ The popup footer always shows the installed version (e.g. `v10.7.0`).
 
 - Works on desktop `youtube.com` / `*.youtube.com`. Skips `music.youtube.com`. Needs Chrome 111 or newer. Content scripts run at `document_start` in the top frame only.
 - Architecture: toggle definitions live in `youtube-declutter/features.js`. `content.js` (isolated world) builds the hiding CSS from them, layers the Monk Mode preset over the stored states, and bridges quality settings to `quality-main.js` (page `MAIN` world), which enforces quality once per video. The popup rows are built by `popup.js` from the same definitions; shared quality logic (ladder, defaults, options) is canonical in `quality-core.js`, loaded first everywhere. No remote scripts, no `eval`, no inline handlers.
-- Some features match English labels (Top News, Breaking News, Thanks, Clip, Shorts tab, Notifications, Create, Ask). They silently do nothing on localized YouTube.
+- Some features match English labels (Top News, Breaking News, Thanks, Hype, Clip, Community, Posts, Shorts tab, Notifications, Create, Ask). They silently do nothing on localized YouTube.
 - Hiding Shorts blanks a Shorts page you open direct. The hidden Shorts player is also paused so no audio keeps playing.
 - First paint uses defaults synchronously (opt-out features stay visible) until stored settings load; a 2s safety net guarantees the popup and page never hang on slow storage.
 
 ## Development
 
-- `npm test`: regression suite (`tests/`, 10 files covering manifest, features schema, quality core, storage bridge, world separation, popup packaging, update notifier, behavioral helpers, Monk Mode, and the fix guards).
+- `npm test`: regression suite (`tests/`, 11 files covering manifest, features schema, quality core, storage bridge, world separation, popup packaging, update notifier, behavioral helpers, Monk Mode, modern-selector guards, and the fix guards).
 - `npm run package`: validates `manifest.json` vs `package.json` versions and copies the 8-file + `icons/` allowlist into `dist/`. `npm run package:zip` zips it deterministically (sorted file list, fixed mtimes, `zip -X`; needs the `zip` binary).
 - Releases: push a `v<version>` tag matching both version files; `.github/workflows/release.yml` verifies the match, tests, packs, and publishes the zip.
 - License: GPL-3.0-or-later, see `LICENSE`.
 
 ## Changelog
 
+- `10.8.0`: Modern YouTube sweep. New Community Posts toggle (Latest YouTube posts shelf, channel Posts tab, community shortcut), Ask About This Video toggle (watch-page Ask, Ask questions, YouChat, fullscreen quick action), and Most Relevant Shelf toggle for the Subscriptions feed. AI summary selectors now cover search results; Ask YouTube search chips, Shorts v2 lockups/search shelves, modern `list=RD` Mix URLs, masthead v3 ads, related-video chips, YouTube Labs/Report history sections, the shopping shelf, auto-dub/people-mentioned description extras, and the Hype action are handled. Hiding recommended videos now collapses the empty sidebar column without hiding a visible playlist queue or live chat.
 - `10.7.0`: Monk Mode: one-switch lockdown to search, subscriptions, subscribed channels, and watch essentials (no feed, Shorts, recommendations, comments, autoplay). Preset layer leaves saved toggles untouched; exit restores them. New opt-in toggles: Subscriptions-Only Sidebar, Home Redirects to Subscriptions, Turn Off Autoplay.
 - `10.6.0`: Expanded coverage: Home Feed, Entire Top Header, Recommended Sidebar, Live Chat, Playlist Queue Panel, Mixes & Radio, and refreshed 2026 selectors. Fixed archived livestreams never getting preferred quality, Premium quality on non-English YouTube, ad waits abandoning enforcement, storage-fallback races, update-check retry storms, group All/None controls disappearing when collapsed, and the release zip filename. Bulk enable now leaves opt-in toggles off. Deterministic zip builds.
 - `10.5.0`: Popup footer shows the installed version plus a GitHub update notifier (24h-cached `releases/latest` check, manual reinstall link). Tag-only release workflow builds and attaches the packed zip.
